@@ -12,6 +12,7 @@ export interface IChallenge extends Document {
   gym?: Types.ObjectId;
   startDate?: Date;
   endDate?: Date;
+  maxParticipants?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -27,7 +28,8 @@ const challengeSchema = new Schema<IChallenge>({
   participants: { type: [Schema.Types.ObjectId], ref: "User", default: [] },
   gym: { type: Schema.Types.ObjectId, ref: "Gym" }, 
   startDate: { type: Date },
-  endDate: { type: Date }
+  endDate: { type: Date },
+  maxParticipants: { type: Number, default: 50 }
 }, {
   timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
   strict: true

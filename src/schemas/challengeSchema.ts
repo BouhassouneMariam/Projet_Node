@@ -9,8 +9,17 @@ export const createChallengeBody = z.object({
   duration: z.number().int().min(1, "La durée doit être au moins 1 jour"),
   objectives: z.string().min(1, "Les objectifs sont requis"),
   gym: z.string().optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
+  maxParticipants: z.number().int().positive().optional(),
+  startDate: z.iso.datetime().optional(),
+  endDate: z.iso.datetime().optional(),
+}).refine((data) => {
+    if (data.startDate && data.endDate) {
+        return new Date(data.startDate) < new Date(data.endDate);
+    }
+    return true;
+}, {
+    message: "La date de fin doit être postérieure à la date de début",
+    path: ["endDate"],
 });
 
 export const updateChallengeBody = createChallengeBody
