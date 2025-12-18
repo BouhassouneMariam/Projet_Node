@@ -25,6 +25,13 @@ services:
     volumes:
       - mongo-data:/data/db
 
+  client:
+    build: ./client
+    ports:
+      - "8080:80"
+    depends_on:
+      - web
+
 volumes:
   node_modules:
   mongo-data:

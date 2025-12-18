@@ -1,15 +1,31 @@
 import { Router } from "express";
 import { authMiddleware, validateMiddleware } from "../middlewares";
 import { createTrainingStatBody, CreateTrainingStatInput, updateTrainingStatBody, UpdateTrainingStatInput } from "../schemas";
-import { TrainingStatModel, ScoreModel } from "../models";
+import { TrainingStatModel, ScoreModel, UserModel } from "../models";
 import { BadgeService } from "../utils/badgeService";
 
 const trainingStatRouter = Router();
 
-//Créer une stat + Gain de points automatique
+// ✅ CREATE - Authentifié (peut créer ses propres stats OU admin peut créer pour n'importe qui)
 trainingStatRouter.post('/create', authMiddleware, validateMiddleware({ body: createTrainingStatBody }), async (req, res): Promise<void> => {
     try {
         const input = req.body as CreateTrainingStatInput;
+        
+        // Récupérer l'utilisateur connecté
+        const currentUser = await UserModel.findById(req.user?.id).exec();
+        if (!currentUser) {
+            res.status(401).json({ error: "Utilisateur non authentifié" });
+            return;
+        }
+        
+        const isAdmin = currentUser.role === 'admin';
+        
+        // Vérifier que l'utilisateur crée ses propres stats (sauf si admin)
+        if (input.user !== req.user?.id && !isAdmin) {
+            res.status(403).json({ error: "Vous ne pouvez créer des stats que pour vous-même" });
+            return;
+        }
+        
         const created = await TrainingStatModel.create(input);
 
         // Si l'entraînement est marqué comme terminé
@@ -35,10 +51,27 @@ trainingStatRouter.post('/create', authMiddleware, validateMiddleware({ body: cr
     }
 });
 
-// Récupérer l'historique d'un utilisateur
+// ✅ GET USER STATS - Authentifié (peut voir ses propres stats OU admin peut voir toutes les stats)
 trainingStatRouter.get('/user/:userId', authMiddleware, async (req, res): Promise<void> => {
     try {
-        const history = await TrainingStatModel.find({ user: req.params.userId })
+        const { userId } = req.params;
+        
+        // Récupérer l'utilisateur connecté
+        const currentUser = await UserModel.findById(req.user?.id).exec();
+        if (!currentUser) {
+            res.status(401).json({ error: "Utilisateur non authentifié" });
+            return;
+        }
+        
+        const isAdmin = currentUser.role === 'admin';
+        
+        // Vérifier que l'utilisateur consulte ses propres stats (sauf si admin)
+        if (userId !== req.user?.id && !isAdmin) {
+            res.status(403).json({ error: "Vous ne pouvez voir que vos propres statistiques" });
+            return;
+        }
+        
+        const history = await TrainingStatModel.find({ user: userId })
             .populate('challenge', 'title description difficulty')
             .sort({ sessionDate: -1 }); // Du plus récent au plus ancien
         res.json(history);
@@ -47,22 +80,77 @@ trainingStatRouter.get('/user/:userId', authMiddleware, async (req, res): Promis
     }
 });
 
-// Mettre à jour une stat 
+// ✅ UPDATE - Authentifié (peut modifier ses propres stats OU admin peut modifier toutes les stats)
 trainingStatRouter.patch('/update/:id', authMiddleware, validateMiddleware({ body: updateTrainingStatBody }), async (req, res): Promise<void> => {
     try {
+        const { id } = req.params;
+        
+        const stat = await TrainingStatModel.findById(id).exec();
+        if (!stat) {
+            res.status(404).json({ error: "Statistique introuvable" });
+            return;
+        }
+        
+        // Récupérer l'utilisateur connecté
+        const currentUser = await UserModel.findById(req.user?.id).exec();
+        if (!currentUser) {
+            res.status(401).json({ error: "Utilisateur non authentifié" });
+            return;
+        }
+        
+        const isOwner = stat.user.toString() === req.user?.id;
+        const isAdmin = currentUser.role === 'admin';
+        
+        // Vérifier que l'utilisateur modifie ses propres stats (sauf si admin)
+        if (!isOwner && !isAdmin) {
+            res.status(403).json({ error: "Vous ne pouvez modifier que vos propres statistiques" });
+            return;
+        }
+        
         const updates = req.body as UpdateTrainingStatInput;
-        const updated = await TrainingStatModel.findByIdAndUpdate(req.params.id, updates, { new: true });
-        if (!updated) { res.status(404).json({ error: "Statistique introuvable" }); return; }
+        const updated = await TrainingStatModel.findByIdAndUpdate(id, updates, { new: true });
+        if (!updated) {
+            res.status(404).json({ error: "Statistique introuvable" });
+            return;
+        }
         res.json(updated);
-    } catch(error) { res.status(500).json({ error: "Erreur mise à jour" }); }
+    } catch(error) { 
+        res.status(500).json({ error: "Erreur mise à jour" }); 
+    }
 });
 
-//Supprimer une stat
+// ✅ DELETE - Authentifié (peut supprimer ses propres stats OU admin peut supprimer toutes les stats)
 trainingStatRouter.delete('/:id', authMiddleware, async (req, res): Promise<void> => {
     try {
-        await TrainingStatModel.findByIdAndDelete(req.params.id);
+        const { id } = req.params;
+        
+        const stat = await TrainingStatModel.findById(id).exec();
+        if (!stat) {
+            res.status(404).json({ error: "Statistique introuvable" });
+            return;
+        }
+        
+        // Récupérer l'utilisateur connecté
+        const currentUser = await UserModel.findById(req.user?.id).exec();
+        if (!currentUser) {
+            res.status(401).json({ error: "Utilisateur non authentifié" });
+            return;
+        }
+        
+        const isOwner = stat.user.toString() === req.user?.id;
+        const isAdmin = currentUser.role === 'admin';
+        
+        // Vérifier que l'utilisateur supprime ses propres stats (sauf si admin)
+        if (!isOwner && !isAdmin) {
+            res.status(403).json({ error: "Vous ne pouvez supprimer que vos propres statistiques" });
+            return;
+        }
+        
+        await TrainingStatModel.findByIdAndDelete(id);
         res.status(204).send();
-    } catch(error) { res.status(500).json({ error: "Erreur suppression" }); }
+    } catch(error) { 
+        res.status(500).json({ error: "Erreur suppression" }); 
+    }
 });
 
 export { trainingStatRouter };

@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { authMiddleware, validateMiddleware } from "../middlewares";
+import { authMiddleware, validateMiddleware, roleMiddleware } from "../middlewares";
 import { createBadgeRuleBody, CreateBadgeRuleInput, updateBadgeRuleBody, UpdateBadgeRuleInput } from "../schemas";
 import { BadgeRuleModel } from "../models";
 
 const badgeRuleRouter = Router();
 
-// Récupérer toutes les règles de badges
+// ✅ GET ALL - Tous les utilisateurs authentifiés
 badgeRuleRouter.get('/getAll', authMiddleware, async (req, res): Promise<void> => {
     try {
         const list = await BadgeRuleModel.find().exec();
@@ -15,7 +15,7 @@ badgeRuleRouter.get('/getAll', authMiddleware, async (req, res): Promise<void> =
     }
 });
 
-// Récupérer une règle par ID
+// ✅ GET BY ID - Tous les utilisateurs authentifiés
 badgeRuleRouter.get('/get/:id', authMiddleware, async (req, res): Promise<void> => {
     try {
         const rule = await BadgeRuleModel.findById(req.params.id).exec();
@@ -29,7 +29,7 @@ badgeRuleRouter.get('/get/:id', authMiddleware, async (req, res): Promise<void> 
     }
 });
 
-// Récupérer toutes les règles actives
+// ✅ GET ACTIVE - Tous les utilisateurs authentifiés
 badgeRuleRouter.get('/active', authMiddleware, async (req, res): Promise<void> => {
     try {
         const list = await BadgeRuleModel.find({ isActive: true }).exec();
@@ -39,7 +39,7 @@ badgeRuleRouter.get('/active', authMiddleware, async (req, res): Promise<void> =
     }
 });
 
-// Récupérer les règles pour un badge spécifique
+// ✅ GET BY BADGE NAME - Tous les utilisateurs authentifiés
 badgeRuleRouter.get('/badge', authMiddleware, async (req, res): Promise<void> => {
     try {
         const { name } = req.query;
@@ -54,8 +54,8 @@ badgeRuleRouter.get('/badge', authMiddleware, async (req, res): Promise<void> =>
     }
 });
 
-// Créer une nouvelle règle de badge
-badgeRuleRouter.post('/create', authMiddleware, validateMiddleware({ body: createBadgeRuleBody }), async (req, res): Promise<void> => {
+// ✅ CREATE - Admin uniquement
+badgeRuleRouter.post('/create', authMiddleware, roleMiddleware(["admin"]), validateMiddleware({ body: createBadgeRuleBody }), async (req, res): Promise<void> => {
     try {
         const input = req.body as CreateBadgeRuleInput;
         const created = await BadgeRuleModel.create(input);
@@ -65,8 +65,8 @@ badgeRuleRouter.post('/create', authMiddleware, validateMiddleware({ body: creat
     }
 });
 
-// Mettre à jour une règle existante
-badgeRuleRouter.patch('/update/:id', authMiddleware, validateMiddleware({ body: updateBadgeRuleBody }), async (req, res): Promise<void> => {
+// ✅ UPDATE - Admin uniquement
+badgeRuleRouter.patch('/update/:id', authMiddleware, roleMiddleware(["admin"]), validateMiddleware({ body: updateBadgeRuleBody }), async (req, res): Promise<void> => {
     try {
         const id = req.params.id;
         const updates = req.body as UpdateBadgeRuleInput;
@@ -81,8 +81,8 @@ badgeRuleRouter.patch('/update/:id', authMiddleware, validateMiddleware({ body: 
     }
 });
 
-// Activer/Désactiver une règle
-badgeRuleRouter.patch('/toggle/:id', authMiddleware, async (req, res): Promise<void> => {
+// ✅ TOGGLE - Admin uniquement
+badgeRuleRouter.patch('/toggle/:id', authMiddleware, roleMiddleware(["admin"]), async (req, res): Promise<void> => {
     try {
         const id = req.params.id;
         const rule = await BadgeRuleModel.findById(id).exec();
@@ -98,8 +98,8 @@ badgeRuleRouter.patch('/toggle/:id', authMiddleware, async (req, res): Promise<v
     }
 });
 
-// Supprimer une règle
-badgeRuleRouter.delete('/delete/:id', authMiddleware, async (req, res): Promise<void> => {
+// ✅ DELETE - Admin uniquement
+badgeRuleRouter.delete('/delete/:id', authMiddleware, roleMiddleware(["admin"]), async (req, res): Promise<void> => {
     try {
         const { id } = req.params;
         const deleted = await BadgeRuleModel.findByIdAndDelete(id).exec();
@@ -113,8 +113,8 @@ badgeRuleRouter.delete('/delete/:id', authMiddleware, async (req, res): Promise<
     }
 });
 
-// Supprimer toutes les règles (à utiliser avec précaution)
-badgeRuleRouter.delete('/deleteAll', authMiddleware, async (req, res): Promise<void> => {
+// ✅ DELETE ALL - Admin uniquement
+badgeRuleRouter.delete('/deleteAll', authMiddleware, roleMiddleware(["admin"]), async (req, res): Promise<void> => {
     try {
         await BadgeRuleModel.deleteMany({});
         res.status(204).send();
