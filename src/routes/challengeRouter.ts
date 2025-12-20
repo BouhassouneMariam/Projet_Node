@@ -2,10 +2,11 @@ import { Router } from "express";
 import { Types } from "mongoose";
 import { validateMiddleware, authMiddleware } from "../middlewares";
 import { createChallengeBody, CreateChallengeInput, updateChallengeBody, joinChallengeBody, completeChallengeBody } from "../schemas";
-import { ChallengeModel, GymModel } from "../models";
+import { ChallengeModel, GymModel, SocialChallengeModel } from "../models";
 import { addPointsForChallenge } from "../utils/scoreService";
 
 const challengeRouter = Router();
+
 
 challengeRouter.get('/getAll', async (req, res): Promise<void> => {
     try {
@@ -13,7 +14,7 @@ challengeRouter.get('/getAll', async (req, res): Promise<void> => {
             .populate('creator', 'firstname lastname email')
             .populate('exerciseType', 'name difficulty')
             .populate('gym', 'name')
-            .sort({ createdAt: -1 }) // Trie par le plus récent
+            .sort({ createdAt: -1 })
             .exec();
         res.status(200).json(challenges);
     } catch (error) {
@@ -42,6 +43,217 @@ challengeRouter.get('/filter', async (req, res): Promise<void> => {
         res.status(500).json({ error: "Erreur lors du filtrage des défis" });
     }
 });
+
+
+challengeRouter.get('/my/created', authMiddleware, async (req, res): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: "Non authentifié" });
+            return;
+        }
+
+        const challenges = await ChallengeModel.find({ creator: req.user.id })
+            .populate('exerciseType', 'name difficulty')
+            .populate('gym', 'name')
+            .populate('participants', 'firstname lastname email')
+            .sort({ created_at: -1 })
+            .exec();
+
+        res.status(200).json({
+            count: challenges.length,
+            challenges
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Erreur récupération défis créés" });
+    }
+});
+
+challengeRouter.get('/my/participating', authMiddleware, async (req, res): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: "Non authentifié" });
+            return;
+        }
+
+        const challenges = await ChallengeModel.find({
+            participants: req.user.id,
+            creator: { $ne: req.user.id }
+        })
+            .populate('creator', 'firstname lastname')
+            .populate('exerciseType', 'name difficulty')
+            .populate('gym', 'name')
+            .sort({ created_at: -1 })
+            .exec();
+
+        res.status(200).json({
+            count: challenges.length,
+            challenges
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Erreur récupération participations" });
+    }
+});
+
+challengeRouter.get('/my/all', authMiddleware, async (req, res): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: "Non authentifié" });
+            return;
+        }
+
+        const challenges = await ChallengeModel.find({
+            $or: [
+                { creator: req.user.id },
+                { participants: req.user.id }
+            ]
+        })
+            .populate('creator', 'firstname lastname')
+            .populate('exerciseType', 'name difficulty')
+            .populate('gym', 'name')
+            .sort({ created_at: -1 })
+            .exec();
+
+        const created = challenges.filter(c => c.creator._id.toString() === req.user!.id);
+        const participating = challenges.filter(c => c.creator._id.toString() !== req.user!.id);
+
+        res.status(200).json({
+            summary: {
+                totalCreated: created.length,
+                totalParticipating: participating.length,
+                total: challenges.length
+            },
+            created,
+            participating
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Erreur récupération défis" });
+    }
+});
+
+challengeRouter.get('/my/active', authMiddleware, async (req, res): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: "Non authentifié" });
+            return;
+        }
+
+        const now = new Date();
+
+        const challenges = await ChallengeModel.find({
+            $and: [
+                {
+                    $or: [
+                        { creator: req.user.id },
+                        { participants: req.user.id }
+                    ]
+                },
+                {
+                    $or: [
+                        { endDate: { $gte: now } },
+                        { endDate: { $exists: false } },
+                        { endDate: null }
+                    ]
+                }
+            ]
+        })
+            .populate('creator', 'firstname lastname')
+            .populate('exerciseType', 'name difficulty')
+            .populate('gym', 'name')
+            .sort({ endDate: 1 })
+            .exec();
+
+        res.status(200).json({
+            count: challenges.length,
+            challenges
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Erreur récupération défis actifs" });
+    }
+});
+
+challengeRouter.get('/my/completed', authMiddleware, async (req, res): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: "Non authentifié" });
+            return;
+        }
+
+        const now = new Date();
+
+        const challenges = await ChallengeModel.find({
+            $and: [
+                {
+                    $or: [
+                        { creator: req.user.id },
+                        { participants: req.user.id }
+                    ]
+                },
+                { endDate: { $lt: now } }
+            ]
+        })
+            .populate('creator', 'firstname lastname')
+            .populate('exerciseType', 'name difficulty')
+            .populate('gym', 'name')
+            .sort({ endDate: -1 })
+            .exec();
+
+        res.status(200).json({
+            count: challenges.length,
+            challenges
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Erreur récupération défis terminés" });
+    }
+});
+
+challengeRouter.get('/my/social', authMiddleware, async (req, res): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: "Non authentifié" });
+            return;
+        }
+
+        const socialChallenges = await SocialChallengeModel.find({
+            $or: [
+                { inviter: req.user.id },
+                { invitee: req.user.id }
+            ]
+        })
+            .populate({
+                path: 'challenge',
+                populate: [
+                    { path: 'exerciseType', select: 'name difficulty' },
+                    { path: 'gym', select: 'name' }
+                ]
+            })
+            .populate('inviter', 'firstname lastname email')
+            .populate('invitee', 'firstname lastname email')
+            .sort({ createdAt: -1 })
+            .exec();
+
+        const pending = socialChallenges.filter(sc => sc.status === 'pending');
+        const accepted = socialChallenges.filter(sc => sc.status === 'accepted');
+        const completed = socialChallenges.filter(sc => sc.status === 'completed');
+        const declined = socialChallenges.filter(sc => sc.status === 'declined');
+
+        res.status(200).json({
+            summary: {
+                pending: pending.length,
+                accepted: accepted.length,
+                completed: completed.length,
+                declined: declined.length,
+                total: socialChallenges.length
+            },
+            pending,
+            accepted,
+            completed,
+            declined
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Erreur récupération défis sociaux" });
+    }
+});
+
 
 challengeRouter.post('/create', authMiddleware, validateMiddleware({ body: createChallengeBody }), async (req, res): Promise<void> => {
     try {
@@ -72,15 +284,34 @@ challengeRouter.post('/create', authMiddleware, validateMiddleware({ body: creat
     }
 });
 
+challengeRouter.patch('/update/:id', authMiddleware, validateMiddleware({ body: updateChallengeBody }), async (req, res): Promise<void> => {
+    try {
+        const updated = await ChallengeModel.findByIdAndUpdate(req.params.id, req.body, { new: true }).exec();
+        if (!updated) {
+            res.status(404).json({ error: "Défi non trouvé" });
+            return;
+        }
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: "Erreur update" });
+    }
+});
+
 challengeRouter.get('/:id', async (req, res): Promise<void> => {
     try {
         const challenge = await ChallengeModel.findById(req.params.id)
             .populate('creator', 'firstname lastname')
             .populate('gym', 'name')
+            .populate('exerciseType', 'name difficulty')
             .exec();
-        if (!challenge) { res.status(404).json({ error: "Défi non trouvé" }); return; }
+        if (!challenge) {
+            res.status(404).json({ error: "Défi non trouvé" });
+            return;
+        }
         res.status(200).json(challenge);
-    } catch (error) { res.status(500).json({ error: "Erreur récupération" }); }
+    } catch (error) {
+        res.status(500).json({ error: "Erreur récupération" });
+    }
 });
 
 challengeRouter.post('/:id/join', authMiddleware, validateMiddleware({ body: joinChallengeBody }), async (req, res): Promise<void> => {
@@ -88,30 +319,19 @@ challengeRouter.post('/:id/join', authMiddleware, validateMiddleware({ body: joi
         const { id } = req.params;
         const { userId } = req.body;
         const challenge = await ChallengeModel.findById(id).exec();
-        if (!challenge) { res.status(404).json({ error: "Défi non trouvé" }); return; }
+        if (!challenge) {
+            res.status(404).json({ error: "Défi non trouvé" });
+            return;
+        }
 
         if (!challenge.participants.some(p => p.toString() === userId)) {
             challenge.participants.push(userId);
             await challenge.save();
         }
         res.status(200).json({ message: "Rejoint avec succès" });
-    } catch (error) { res.status(500).json({ error: "Erreur join" }); }
-});
-
-challengeRouter.patch('/update/:id', authMiddleware, validateMiddleware({ body: updateChallengeBody }), async (req, res): Promise<void> => {
-    try {
-        const updated = await ChallengeModel.findByIdAndUpdate(req.params.id, req.body, { new: true }).exec();
-        if (!updated) { res.status(404).json({ error: "Défi non trouvé" }); return; }
-        res.json(updated);
-    } catch (error) { res.status(500).json({ error: "Erreur update" }); }
-});
-
-challengeRouter.delete('/:id', authMiddleware, async (req, res): Promise<void> => {
-    try {
-        const deleted = await ChallengeModel.findByIdAndDelete(req.params.id).exec();
-        if (!deleted) { res.status(404).json({ error: "Défi non trouvé" }); return; }
-        res.status(204).send();
-    } catch (error) { res.status(500).json({ error: "Erreur delete" }); }
+    } catch (error) {
+        res.status(500).json({ error: "Erreur join" });
+    }
 });
 
 challengeRouter.post('/:id/complete', authMiddleware, validateMiddleware({ body: completeChallengeBody }), async (req, res): Promise<void> => {
@@ -145,6 +365,19 @@ challengeRouter.post('/:id/complete', authMiddleware, validateMiddleware({ body:
         });
     } catch (error) {
         res.status(500).json({ error: "Erreur lors de la complétion du défi" });
+    }
+});
+
+challengeRouter.delete('/:id', authMiddleware, async (req, res): Promise<void> => {
+    try {
+        const deleted = await ChallengeModel.findByIdAndDelete(req.params.id).exec();
+        if (!deleted) {
+            res.status(404).json({ error: "Défi non trouvé" });
+            return;
+        }
+        res.status(204).send();
+    } catch (error) {
+        res.status(500).json({ error: "Erreur delete" });
     }
 });
 
