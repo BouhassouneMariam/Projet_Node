@@ -6,6 +6,7 @@ import { gymSeeder } from "./gymSeeder";
 import { badgeSeeder } from "./badgeSeeder";
 import { badgeRuleSeeder } from "./badgeRuleSeeder";
 import { challengeSeeder } from "./challengeSeeder";
+import { rewardSeeder } from "./rewardSeeder";
 import { 
   UserModel, 
   ExerciseTypeModel, 
@@ -16,7 +17,10 @@ import {
   TrainingStatModel,
   ScoreModel,
   SocialChallengeModel,
-  UserBadgeModel
+  UserBadgeModel,
+  ChallengeShareModel,
+  RewardModel,
+  UserRewardModel
 } from "../src/models";
 
 if (!process.env.MONGODB_URI) {
@@ -39,6 +43,9 @@ async function clearDatabase() {
   await ScoreModel.deleteMany({});
   await SocialChallengeModel.deleteMany({});
   await UserBadgeModel.deleteMany({});
+  await ChallengeShareModel.deleteMany({});
+  await RewardModel.deleteMany({});
+  await UserRewardModel.deleteMany({});
   
   console.log("✅ Database cleared\n");
 }
@@ -51,14 +58,15 @@ async function seedDatabase() {
     await connectMongoose(MONGO_URI);
     console.log("✅ Connected to MongoDB\n");
 
-    // Clear existing data
+ 
     await clearDatabase();
 
-    // Seed in order (respecting dependencies)
+    
     const users = await userSeeder();
     const exerciseTypes = await exerciseTypeSeeder();
     const badges = await badgeSeeder();
     await badgeRuleSeeder();
+    const rewards = await rewardSeeder();
     const gyms = await gymSeeder(users, exerciseTypes);
     const challenges = await challengeSeeder(users, exerciseTypes, gyms);
 
@@ -68,6 +76,7 @@ async function seedDatabase() {
     console.log(`   - Exercise Types: ${exerciseTypes.length}`);
     console.log(`   - Badges: ${badges.length}`);
     console.log(`   - Badge Rules: seeded`);
+    console.log(`   - Rewards: ${rewards.length}`);
     console.log(`   - Gyms: ${gyms.length}`);
     console.log(`   - Challenges: ${challenges.length}`);
     
@@ -86,5 +95,5 @@ async function seedDatabase() {
   }
 }
 
-// Run seeder
+
 seedDatabase();

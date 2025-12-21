@@ -13,7 +13,7 @@ Les rôles disponibles : `admin`, `manager`, `member`
 
 ---
 
-## Routes User (`/users`)
+## Routes User (`/user`)
 
 ### Authentification
 
@@ -70,7 +70,7 @@ Les rôles disponibles : `admin`, `manager`, `member`
 
 ---
 
-## Routes Gym (`/gyms`)
+## Routes Gym (`/gym`)
 
 ### Consultation
 
@@ -121,7 +121,7 @@ Les rôles disponibles : `admin`, `manager`, `member`
 
 ---
 
-## Routes ExerciseType (`/exercise-types`)
+## Routes ExerciseType (`/exerciseType`)
 
 | Méthode | Route | Auth | Rôle | Description |
 |---------|-------|------|------|-------------|
@@ -145,7 +145,7 @@ Les rôles disponibles : `admin`, `manager`, `member`
 
 ---
 
-## Routes Badge (`/badges`)
+## Routes Badge (`/badge`)
 
 | Méthode | Route | Auth | Description |
 |---------|-------|------|-------------|
@@ -300,14 +300,17 @@ GET /badgeRule/badge?name=Ultra Marathon
 
 ---
 
-## Routes Challenge (`/challenges`)
+## Routes Challenge (`/challenge`)
 
 ### Consultation
 
 | Méthode | Route | Auth | Description |
 |---------|-------|------|-------------|
+| GET | `/getAll` | - | Récupérer tous les défis |
 | GET | `/filter` | - | Filtrer les défis (query params) |
 | GET | `/:id` | - | Récupérer un défi par ID |
+| GET | `/shared/received` | 🔒 | Défis partagés reçus |
+| GET | `/shared/sent` | 🔒 | Défis partagés envoyés |
 
 **Query params `/filter` :**
 - `difficulty` : beginner, intermediate, advanced
@@ -315,12 +318,20 @@ GET /badgeRule/badge?name=Ultra Marathon
 - `duration` : durée maximale (en jours)
 - `gymId` : ID de la salle
 
+**Query params `/shared/received` :**
+- `unseen` : `true` pour voir uniquement les défis non vus
+
 ### Gestion
 
-| Méthode | Route | Auth | Description |
-|---------|-------|------|-------------|
-| POST | `/create` | 🔒 | Créer un défi |
-| POST | `/:id/join` | 🔒 | Rejoindre un défi |
+| Méthode | Route | Auth | Rôle | Description |
+|---------|-------|------|------|-------------|
+| POST | `/create` | 🔒 | - | Créer un défi |
+| POST | `/:id/share` | 🔒 | - | Partager un défi avec d'autres utilisateurs |
+| POST | `/:id/join` | 🔒 | - | Rejoindre un défi |
+| POST | `/:id/complete` | 🔒 | - | Compléter un défi et gagner des points |
+| PATCH | `/update/:id` | 🔒 | - | Mettre à jour un défi |
+| PATCH | `/shared/:shareId/seen` | 🔒 | admin/manager | Marquer un défi partagé comme vu/non vu |
+| DELETE | `/:id` | 🔒 | admin/manager | Supprimer un défi |
 
 **Body `/create` :**
 ```json
@@ -346,14 +357,114 @@ GET /badgeRule/badge?name=Ultra Marathon
 }
 ```
 
+**Body `/:id/share` :**
+```json
+{
+  "sharedWith": "507f1f77bcf86cd799439011",
+  "message": "Essaie ce défi !"
+}
+```
+
+**Ou pour partager avec plusieurs utilisateurs :**
+```json
+{
+  "sharedWith": ["507f1...", "507f2...", "507f3..."],
+  "message": "Relevons ce défi ensemble !"
+}
+```
+
+**Réponse `/:id/share` :**
+```json
+{
+  "message": "Défi partagé avec succès",
+  "shared": 3,
+  "alreadyShared": 0,
+  "recipients": 3
+}
+```
+
+**Body `/shared/:shareId/seen` :**
+```json
+{
+  "seen": true
+}
+```
+
+**Réponse `/shared/received` :**
+```json
+[
+  {
+    "_id": "675f...",
+    "challenge": {
+      "_id": "675e...",
+      "title": "Défi Push-ups",
+      "creator": {
+        "firstname": "John",
+        "lastname": "Doe"
+      },
+      "exerciseType": {
+        "name": "Push-ups",
+        "difficulty": "beginner"
+      },
+      "gym": {
+        "name": "FitZone Paris"
+      }
+    },
+    "sharedBy": {
+      "firstname": "Marie",
+      "lastname": "Martin",
+      "email": "marie@example.com"
+    },
+    "sharedWith": "507f1f77bcf86cd799439011",
+    "message": "Essaie ce défi !",
+    "seen": false,
+    "created_at": "2025-12-21T10:00:00Z"
+  }
+]
+```
+
+**Body `/:id/complete` :**
+```json
+{
+  "userId": "507f1f77bcf86cd799439011"
+}
+```
+
+**Réponse `/:id/complete` :**
+```json
+{
+  "message": "Défi complété avec succès",
+  "pointsEarned": 20
+}
+```
+
+**🎯 Calcul des points par difficulté :**
+- **beginner** : 10 points
+- **intermediate** : 20 points
+- **advanced** : 30 points
+
+**✅ Validations :**
+- L'`userId` doit être un ObjectId MongoDB valide (24 caractères hexadécimaux)
+- L'utilisateur doit être participant du défi
+- L'utilisateur ne peut compléter le défi que pour lui-même
+- Les points sont automatiquement ajoutés au score de l'utilisateur
+- Les récompenses et badges sont automatiquement vérifiés et attribués
+
+**📤 Partage de défis :**
+- Vous ne pouvez pas partager un défi avec vous-même
+- Les utilisateurs partagés doivent exister dans la base de données
+- Un défi ne peut être partagé qu'une seule fois avec le même utilisateur (évite les doublons)
+- Le partage inclut un message optionnel
+
 ---
 
-## Routes Score (`/scores`)
+## Routes Score (`/score`)
 
 | Méthode | Route | Auth | Description |
 |---------|-------|------|-------------|
 | GET | `/leaderboard` | - | Top 10 des meilleurs scores |
 | GET | `/user/:userId` | - | Score d'un utilisateur |
+| POST | `/add-points` | 🔒 | Ajouter manuellement des points (admin) |
 
 **Réponse `/leaderboard` :**
 ```json
@@ -367,14 +478,48 @@ GET /badgeRule/badge?name=Ultra Marathon
       "email": "marie@example.com"
     },
     "totalPoints": 1500,
-    "challengesCompleted": 10
+    "challengesCompleted": 10,
+    "badgesEarned": 3
   }
 ]
 ```
 
+**Réponse `/user/:userId` :**
+```json
+{
+  "_id": "507f...",
+  "user": "507f1f77bcf86cd799439011",
+  "totalPoints": 145,
+  "challengesCompleted": 5,
+  "badgesEarned": 2,
+  "createdAt": "2025-12-16T10:00:00Z",
+  "updatedAt": "2025-12-16T15:30:00Z"
+}
+```
+
+**Body `/add-points` :**
+```json
+{
+  "userId": "507f1f77bcf86cd799439011",
+  "points": 50
+}
+```
+
+**Réponse `/add-points` :**
+```json
+{
+  "message": "Points ajoutés avec succès",
+  "points": 50
+}
+```
+
+**✅ Validations :**
+- L'`userId` doit être un ObjectId MongoDB valide
+- Les `points` doivent être un nombre entier ≥ 1
+
 ---
 
-## Routes TrainingStat (`/training-stats`)
+## Routes TrainingStat (`/trainingStat`)
 
 | Méthode | Route | Auth | Description |
 |---------|-------|------|-------------|
@@ -404,12 +549,13 @@ GET /badgeRule/badge?name=Ultra Marathon
 
 ---
 
-## Routes SocialChallenge (`/social-challenges`)
+## Routes SocialChallenge (`/social`)
 
 | Méthode | Route | Auth | Description |
 |---------|-------|------|-------------|
 | POST | `/invite` | 🔒 | Inviter à un défi social |
 | PATCH | `/:id/status` | 🔒 | Modifier le statut (accepter/refuser) |
+| POST | `/:id/complete` | 🔒 | Compléter un défi social et gagner des points avec bonus |
 | GET | `/invitations/:userId` | 🔒 | Invitations en attente d'un utilisateur |
 
 **Body `/invite` :**
@@ -417,8 +563,7 @@ GET /badgeRule/badge?name=Ultra Marathon
 {
   "challenge": "507f1f77bcf86cd799439011",
   "inviter": "507f1f77bcf86cd799439011",
-  "invitee": "507f1f77bcf86cd799439011",
-  "status": "pending"
+  "invitee": "507f1f77bcf86cd799439011"
 }
 ```
 
@@ -429,7 +574,196 @@ GET /badgeRule/badge?name=Ultra Marathon
 }
 ```
 
-**Valeurs `status` :** `pending`, `accepted`, `declined`
+**Valeurs `status` :** `pending`, `accepted`, `declined`, `completed`
+
+**Réponse `/:id/complete` :**
+```json
+{
+  "message": "Défi social complété avec succès",
+  "pointsEarned": 35,
+  "breakdown": {
+    "basePoints": 20,
+    "socialBonus": 15
+  }
+}
+```
+
+**🎯 Calcul des points pour défis sociaux :**
+
+Les défis sociaux donnent un **bonus de +15 points** en plus des points de base :
+
+| Difficulté | Points de base | Bonus social | Total |
+|------------|----------------|--------------|-------|
+| beginner | 10 | +15 | **25 points** |
+| intermediate | 20 | +15 | **35 points** |
+| advanced | 30 | +15 | **45 points** |
+
+**✨ Avantages :**
+- Les **deux participants** (inviteur + invité) reçoivent les points
+- Le bonus social encourage la collaboration
+- Le défi doit être au statut `accepted` avant d'être complété
+
+**✅ Validations :**
+- Les ObjectIds doivent être valides (24 caractères hexadécimaux)
+- Le statut doit être `pending`, `accepted`, `declined` ou `completed`
+- Pour compléter, le défi doit être accepté (status = `accepted`)
+
+---
+
+## Routes Reward (`/reward`)
+
+Gestion du système de récompenses (trophées, médailles, objets, titres).
+
+### Consultation
+
+| Méthode | Route | Auth | Rôle | Description |
+|---------|-------|------|------|-------------|
+| GET | `/getAll` | 🔒 | admin | Récupérer toutes les récompenses |
+| GET | `/active` | - | - | Récupérer les récompenses actives |
+| GET | `/get/:id` | 🔒 | - | Récupérer une récompense par ID |
+| GET | `/my` | 🔒 | - | Récupérer mes récompenses |
+| GET | `/user/:userId` | 🔒 | - | Récupérer les récompenses d'un utilisateur |
+
+### Gestion (Admin)
+
+| Méthode | Route | Auth | Rôle | Description |
+|---------|-------|------|------|-------------|
+| POST | `/create` | 🔒 | admin | Créer une récompense |
+| PATCH | `/update/:id` | 🔒 | admin | Mettre à jour une récompense |
+| PATCH | `/toggle/:id` | 🔒 | admin | Activer/désactiver une récompense |
+| DELETE | `/delete/:id` | 🔒 | admin | Supprimer une récompense |
+| DELETE | `/deleteAll` | 🔒 | admin | Supprimer toutes les récompenses |
+| POST | `/:id/award` | 🔒 | admin | Attribuer manuellement une récompense |
+
+**Body `/create` :**
+```json
+{
+  "name": "Trophée du Champion",
+  "description": "Récompense pour avoir atteint 10000 points",
+  "type": "trophy",
+  "iconUrl": "/rewards/champion-trophy.svg",
+  "rarity": "legendary",
+  "conditionType": "pointsThreshold",
+  "conditionValue": 10000,
+  "isActive": true
+}
+```
+
+**Champs détaillés :**
+- `name` (string) : Nom de la récompense (doit être unique)
+- `description` (string) : Description de la récompense
+- `type` (enum) : `"trophy"` | `"medal"` | `"item"` | `"title"`
+- `iconUrl` (string) : URL de l'icône
+- `rarity` (enum) : `"common"` | `"rare"` | `"epic"` | `"legendary"` (défaut: `"common"`)
+- `conditionType` (enum) : `"challengeComplete"` | `"socialComplete"` | `"pointsThreshold"` | `"manual"`
+- `conditionValue` (number, optionnel) : Valeur seuil (ex: nombre de points)
+- `conditionDifficulty` (enum, optionnel) : `"beginner"` | `"intermediate"` | `"advanced"`
+- `isActive` (boolean) : Statut actif/inactif (défaut: `true`)
+
+**Exemples de récompenses :**
+
+*Récompense basée sur les points :*
+```json
+{
+  "name": "Médaille d'Or",
+  "description": "Atteignez 5000 points",
+  "type": "medal",
+  "iconUrl": "/rewards/gold-medal.svg",
+  "rarity": "epic",
+  "conditionType": "pointsThreshold",
+  "conditionValue": 5000
+}
+```
+
+*Récompense pour défi complété :*
+```json
+{
+  "name": "Maître du Cardio",
+  "description": "Complétez un défi de difficulté avancée",
+  "type": "title",
+  "iconUrl": "/rewards/cardio-master.svg",
+  "rarity": "rare",
+  "conditionType": "challengeComplete",
+  "conditionDifficulty": "advanced"
+}
+```
+
+*Récompense pour défi social :*
+```json
+{
+  "name": "Ami Motivé",
+  "description": "Complétez un défi social",
+  "type": "item",
+  "iconUrl": "/rewards/social-badge.svg",
+  "rarity": "common",
+  "conditionType": "socialComplete"
+}
+```
+
+*Récompense manuelle :*
+```json
+{
+  "name": "Récompense Spéciale",
+  "description": "Récompense attribuée manuellement par un admin",
+  "type": "trophy",
+  "iconUrl": "/rewards/special.svg",
+  "rarity": "legendary",
+  "conditionType": "manual"
+}
+```
+
+**Body `/:id/award` :**
+```json
+{
+  "userId": "507f1f77bcf86cd799439011",
+  "reason": "Performance exceptionnelle"
+}
+```
+
+**Réponse `/:id/award` :**
+```json
+{
+  "message": "Récompense attribuée avec succès"
+}
+```
+
+**Réponse `/my` ou `/user/:userId` :**
+```json
+[
+  {
+    "_id": "675f...",
+    "reward": {
+      "_id": "675e...",
+      "name": "Trophée du Champion",
+      "description": "Récompense pour avoir atteint 10000 points",
+      "type": "trophy",
+      "iconUrl": "/rewards/champion-trophy.svg",
+      "rarity": "legendary"
+    },
+    "user": "507f1f77bcf86cd799439011",
+    "dateEarned": "2025-12-21T10:00:00Z"
+  }
+]
+```
+
+**⚡ Attribution automatique :**
+- Les récompenses sont automatiquement vérifiées et attribuées lors de :
+  - La complétion d'un défi (`/challenge/:id/complete`)
+  - La complétion d'un défi social (`/social/:id/complete`)
+  - L'ajout de points (`/score/add-points`)
+- Les récompenses avec `conditionType: "manual"` doivent être attribuées manuellement
+
+**✅ Validations :**
+- Le nom de la récompense doit être unique
+- Tous les champs enum doivent respecter les valeurs autorisées
+- Le `userId` doit être un ObjectId MongoDB valide
+- Une récompense ne peut être attribuée qu'une seule fois à un utilisateur
+
+**🎁 Types de conditions :**
+- **challengeComplete** : Attribuée lors de la complétion d'un défi (peut filtrer par difficulté)
+- **socialComplete** : Attribuée lors de la complétion d'un défi social
+- **pointsThreshold** : Attribuée quand l'utilisateur atteint un seuil de points
+- **manual** : Doit être attribuée manuellement par un admin
 
 ---
 
@@ -454,20 +788,20 @@ GET /badgeRule/badge?name=Ultra Marathon
 
 **Login :**
 ```bash
-curl -X POST http://localhost:3000/users/auth \
+curl -X POST http://localhost:3000/user/auth \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@gym.com","password":"Admin123!"}'
 ```
 
 **Récupérer les salles (avec token) :**
 ```bash
-curl http://localhost:3000/gyms/getAll \
+curl http://localhost:3000/gym/getAll \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 
 ### Avec Postman / Insomnia
 
-1. Créer une requête POST vers `/users/auth`
+1. Créer une requête POST vers `/user/auth`
 2. Copier le token reçu
 3. Ajouter le header `Authorization: Bearer <token>` aux requêtes protégées
 

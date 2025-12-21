@@ -1,0 +1,1612 @@
+{
+	"info": {
+		"_postman_id": "gym-management-api",
+		"name": "Gym Management API",
+		"description": "Collection complète de toutes les routes de l'API Gym Management",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{authToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "authToken",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Auth - Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('authToken', jsonData.token);",
+									"    pm.collectionVariables.set('userId', jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@gym.com\",\n  \"password\": \"Admin123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/auth",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "auth"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/user/getAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "getAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/user/get/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "get", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{userId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstname\": \"John\",\n  \"lastname\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\",\n  \"role\": \"member\",\n  \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstname\": \"Jane\",\n  \"lastname\": \"Smith\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/update/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "update", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/user/delete/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "delete", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete All Users",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/user/deleteAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "deleteAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Active Status",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/user/toggle-active/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "toggle-active", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/user/status/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "status", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Gyms",
+			"item": [
+				{
+					"name": "Get All Gyms",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/gym/getAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", "getAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Approved Gyms",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/gym/approved",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", "approved"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Gym By ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/gym/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Gym",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"FitZone Paris\",\n  \"address\": \"15 Rue de la République, 75001 Paris\",\n  \"capacity\": 150,\n  \"equipment\": [\"Tapis de course\", \"Haltères\", \"Bancs\"],\n  \"facilities\": [\"Vestiaires\", \"Douches\", \"Sauna\"],\n  \"owner\": \"{{userId}}\",\n  \"description\": \"Salle moderne et équipée\",\n  \"phone\": \"0123456789\",\n  \"email\": \"contact@fitzone.fr\",\n  \"exerciseTypes\": []\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/gym/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Gym",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"FitZone Paris Updated\",\n  \"capacity\": 200\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/gym/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Exercise Types",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"exerciseTypes\": []\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/gym/:id/exerciseTypes",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", ":id", "exerciseTypes"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Approve Gym",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"approved\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/gym/approve/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", "approve", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Gym",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/gym/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete All Gyms (Admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/gym/admin/deleteAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["gym", "admin", "deleteAll"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Exercise Types",
+			"item": [
+				{
+					"name": "Get All Exercise Types",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/exerciseType/getAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["exerciseType", "getAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Exercise Type By ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/exerciseType/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["exerciseType", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Exercise Type",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Push-ups\",\n  \"description\": \"Exercice pour le haut du corps\",\n  \"targetedMuscles\": [\"pectoraux\", \"triceps\", \"épaules\"],\n  \"difficulty\": \"beginner\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/exerciseType/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["exerciseType", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Exercise Type",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"difficulty\": \"intermediate\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/exerciseType/update/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["exerciseType", "update", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Exercise Type",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/exerciseType/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["exerciseType", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Badges",
+			"item": [
+				{
+					"name": "Get All Badges",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badge/getAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["badge", "getAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Badge By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badge/get/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["badge", "get", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Badge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Première Séance\",\n  \"description\": \"Complétez votre première séance d'entraînement\",\n  \"iconUrl\": \"/badges/first-session.svg\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/badge/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["badge", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Badge",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Nouvelle description\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/badge/update/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["badge", "update", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Badge",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badge/delete/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["badge", "delete", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete All Badges",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badge/deleteAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["badge", "deleteAll"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Badge Rules",
+			"item": [
+				{
+					"name": "Get All Badge Rules",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/getAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "getAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Badge Rules",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/active",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "active"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Badge Rule By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/get/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "get", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Badge Rules By Badge Name",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/badge?name=Marathon",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "badge"],
+							"query": [
+								{
+									"key": "name",
+									"value": "Marathon"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Badge Rule",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"badgeName\": \"Marathon\",\n  \"conditionType\": \"totalPoints\",\n  \"conditionField\": \"totalPoints\",\n  \"operator\": \">=\",\n  \"value\": 5000,\n  \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Badge Rule",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"value\": 6000\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/update/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "update", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Badge Rule",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/toggle/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "toggle", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Badge Rule",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/delete/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "delete", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete All Badge Rules",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/badgeRule/deleteAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["badgeRule", "deleteAll"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Challenges",
+			"item": [
+				{
+					"name": "Get All Challenges",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/challenge/getAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", "getAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Challenges",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/challenge/filter?difficulty=beginner&duration=7",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", "filter"],
+							"query": [
+								{
+									"key": "difficulty",
+									"value": "beginner"
+								},
+								{
+									"key": "exerciseType",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "duration",
+									"value": "7"
+								},
+								{
+									"key": "gymId",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Challenge By ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/challenge/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Shared Challenges (Received)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/challenge/shared/received?unseen=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", "shared", "received"],
+							"query": [
+								{
+									"key": "unseen",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Shared Challenges (Sent)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/challenge/shared/sent",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", "shared", "sent"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Challenge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Défi Push-ups 100\",\n  \"description\": \"Réalisez 100 push-ups en une séance\",\n  \"creator\": \"{{userId}}\",\n  \"exerciseType\": \"6761234567890abcdef12345\",\n  \"difficulty\": \"beginner\",\n  \"duration\": 7,\n  \"objectives\": \"Atteindre 100 push-ups\",\n  \"gym\": \"6761234567890abcdef67890\",\n  \"startDate\": \"2025-12-21T00:00:00Z\",\n  \"endDate\": \"2025-12-28T00:00:00Z\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/challenge/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Share Challenge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sharedWith\": \"\",\n  \"message\": \"Essaie ce défi !\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/challenge/:id/share",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", ":id", "share"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Share Challenge (Multiple Users)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sharedWith\": [\"\", \"\"],\n  \"message\": \"Relevons ce défi ensemble !\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/challenge/:id/share",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", ":id", "share"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Join Challenge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/challenge/:id/join",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", ":id", "join"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Complete Challenge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/challenge/:id/complete",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", ":id", "complete"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Challenge",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Défi Push-ups 150\",\n  \"duration\": 14\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/challenge/update/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", "update", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Shared Challenge as Seen",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"seen\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/challenge/shared/:shareId/seen",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", "shared", ":shareId", "seen"],
+							"variable": [
+								{
+									"key": "shareId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Challenge",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/challenge/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["challenge", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Scores",
+			"item": [
+				{
+					"name": "Get Leaderboard",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/score/leaderboard",
+							"host": ["{{baseUrl}}"],
+							"path": ["score", "leaderboard"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Score",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/score/user/:userId",
+							"host": ["{{baseUrl}}"],
+							"path": ["score", "user", ":userId"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Points (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"points\": 50\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/score/add-points",
+							"host": ["{{baseUrl}}"],
+							"path": ["score", "add-points"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Training Stats",
+			"item": [
+				{
+					"name": "Create Training Stat",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+						"raw": "{\n  \"user\": \"{{userId}}\",\n  \"challenge\": \"6761234567890abcdef12345\",\n  \"duration\": 45,\n  \"caloriesBurned\": 350,\n  \"completed\": true,\n  \"sessionDate\": \"2025-12-21T10:00:00Z\",\n  \"notes\": \"Bonne séance\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/trainingStat/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["trainingStat", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Training Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/trainingStat/user/:userId",
+							"host": ["{{baseUrl}}"],
+							"path": ["trainingStat", "user", ":userId"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Training Stat",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"notes\": \"Excellente séance\",\n  \"completed\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/trainingStat/update/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["trainingStat", "update", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Training Stat",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/trainingStat/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["trainingStat", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Social Challenges",
+			"item": [
+				{
+					"name": "Invite to Social Challenge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"challenge\": \"\",\n  \"inviter\": \"{{userId}}\",\n  \"invitee\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/social/invite",
+							"host": ["{{baseUrl}}"],
+							"path": ["social", "invite"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Social Challenge Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"accepted\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/social/:id/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["social", ":id", "status"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Complete Social Challenge",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/social/:id/complete",
+							"host": ["{{baseUrl}}"],
+							"path": ["social", ":id", "complete"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Invitations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/social/invitations/:userId",
+							"host": ["{{baseUrl}}"],
+							"path": ["social", "invitations", ":userId"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Rewards",
+			"item": [
+				{
+					"name": "Get All Rewards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/getAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "getAll"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Rewards",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/active",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "active"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Reward By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/get/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "get", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Rewards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/my",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "my"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Rewards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/user/:userId",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "user", ":userId"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Reward",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Trophée du Champion\",\n  \"description\": \"Récompense pour avoir atteint 10000 points\",\n  \"type\": \"trophy\",\n  \"iconUrl\": \"/rewards/champion-trophy.svg\",\n  \"rarity\": \"legendary\",\n  \"conditionType\": \"pointsThreshold\",\n  \"conditionValue\": 10000,\n  \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/reward/create",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "create"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Reward",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rarity\": \"epic\",\n  \"conditionValue\": 15000\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/reward/update/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "update", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Reward",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/toggle/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "toggle", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Award Reward Manually",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"reason\": \"Performance exceptionnelle\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/reward/:id/award",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", ":id", "award"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Reward",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/delete/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "delete", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete All Rewards",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reward/deleteAll",
+							"host": ["{{baseUrl}}"],
+							"path": ["reward", "deleteAll"]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

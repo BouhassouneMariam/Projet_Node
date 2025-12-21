@@ -46,7 +46,7 @@ export const userSeeder = async () => {
 
   console.log("🌱 Seeding users...");
   
-  // Utiliser create() au lieu de insertMany() pour déclencher le hook pre('save')
+ 
   const createdUsers = [];
   for (const userData of users) {
     const user = await UserModel.create(userData);

@@ -1,7 +1,7 @@
 import jwt, { Secret } from "jsonwebtoken";
 
 
-const JWT_SECRET: Secret = process.env.JWT_SECRET ?? "dev-secret"; // change en prod
+const JWT_SECRET: Secret = process.env.JWT_SECRET ?? "dev-secret"; 
 
 export interface AccessTokenPayload {
   sub: string;

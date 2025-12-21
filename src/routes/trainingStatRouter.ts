@@ -1,12 +1,11 @@
 import { Router } from "express";
-import { authMiddleware, validateMiddleware } from "../middlewares";
+import { authMiddleware, validateMiddleware, roleMiddleware } from "../middlewares";
 import { createTrainingStatBody, CreateTrainingStatInput, updateTrainingStatBody, UpdateTrainingStatInput } from "../schemas";
 import { TrainingStatModel, ScoreModel, UserModel } from "../models";
 import { BadgeService } from "../utils/badgeService";
 
 const trainingStatRouter = Router();
 
-// ✅ CREATE - Authentifié (peut créer ses propres stats OU admin peut créer pour n'importe qui)
 trainingStatRouter.post('/create', authMiddleware, validateMiddleware({ body: createTrainingStatBody }), async (req, res): Promise<void> => {
     try {
         const input = req.body as CreateTrainingStatInput;
@@ -28,11 +27,9 @@ trainingStatRouter.post('/create', authMiddleware, validateMiddleware({ body: cr
         
         const created = await TrainingStatModel.create(input);
 
-        // Si l'entraînement est marqué comme terminé
         if (created.completed) {
-            const points = input.duration * 10; // Logique : 10 points par minute
+            const points = input.duration * 10; 
             
-            // Mise à jour (ou création) du Score
             await ScoreModel.findOneAndUpdate(
                 { user: input.user },
                 { 
@@ -42,7 +39,6 @@ trainingStatRouter.post('/create', authMiddleware, validateMiddleware({ body: cr
                 { upsert: true, new: true }
             );
             
-            // Vérification des badges
             await BadgeService.checkAndAwardAllBadges(input.user);
         }
         res.status(201).json({ message: "Séance enregistrée", trainingStat: created });
@@ -51,7 +47,6 @@ trainingStatRouter.post('/create', authMiddleware, validateMiddleware({ body: cr
     }
 });
 
-// ✅ GET USER STATS - Authentifié (peut voir ses propres stats OU admin peut voir toutes les stats)
 trainingStatRouter.get('/user/:userId', authMiddleware, async (req, res): Promise<void> => {
     try {
         const { userId } = req.params;
@@ -73,14 +68,13 @@ trainingStatRouter.get('/user/:userId', authMiddleware, async (req, res): Promis
         
         const history = await TrainingStatModel.find({ user: userId })
             .populate('challenge', 'title description difficulty')
-            .sort({ sessionDate: -1 }); // Du plus récent au plus ancien
+            .sort({ sessionDate: -1 }); 
         res.json(history);
     } catch(error) { 
         res.status(500).json({ error: "Erreur récupération" }); 
     }
 });
 
-// ✅ UPDATE - Authentifié (peut modifier ses propres stats OU admin peut modifier toutes les stats)
 trainingStatRouter.patch('/update/:id', authMiddleware, validateMiddleware({ body: updateTrainingStatBody }), async (req, res): Promise<void> => {
     try {
         const { id } = req.params;
@@ -119,8 +113,7 @@ trainingStatRouter.patch('/update/:id', authMiddleware, validateMiddleware({ bod
     }
 });
 
-// ✅ DELETE - Authentifié (peut supprimer ses propres stats OU admin peut supprimer toutes les stats)
-trainingStatRouter.delete('/:id', authMiddleware, async (req, res): Promise<void> => {
+trainingStatRouter.delete('/:id', authMiddleware, roleMiddleware(["admin"]), async (req, res): Promise<void> => {
     try {
         const { id } = req.params;
         

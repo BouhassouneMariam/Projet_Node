@@ -8,3 +8,6 @@ export * from "./trainingStatModel";
 export * from "./userBadgeModel";
 export * from "./challengeModel";   
 export * from "./socialChallengeModel";
+export * from "./challengeShareModel";
+export * from "./rewardModel";
+export * from "./userRewardModel";

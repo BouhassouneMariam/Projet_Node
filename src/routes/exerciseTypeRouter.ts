@@ -34,6 +34,13 @@ exerciseTypeRouter.post('/create',
   async (req, res): Promise<void> => {
     try {
       const input = req.body as CreateExerciseTypeInput;
+      
+      const existing = await ExerciseTypeModel.findOne({ name: input.name }).exec();
+      if (existing) {
+        res.status(409).json({ error: `Le type d'exercice "${input.name}" existe déjà` });
+        return;
+      }
+      
       const created = await ExerciseTypeModel.create(input);
       res.status(201).json({ message: "Type d'exercice créé", exerciseType: created });
     } catch (error) {

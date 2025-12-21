@@ -7,3 +7,4 @@ export * from "./socialRouter";
 export * from "./scoreRouter";
 export * from "./trainingStatRouter";
 export * from "./challengeRouter";
+export * from "./rewardRouter";

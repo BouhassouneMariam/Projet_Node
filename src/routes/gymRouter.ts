@@ -1,14 +1,16 @@
 import { Router } from "express";
-import { z } from "zod";
 import {
   validateMiddleware,
   authMiddleware,
   roleMiddleware,
+  gymOwnershipMiddleware,
 } from "../middlewares";
 import {
   createGymBody,
   updateGymBody,
   approveGymBody,
+  exerciseTypesBody,
+  difficultyLevelsBody,
   CreateGymInput,
 } from "../schemas";
 import { GymModel, UserModel } from "../models";
@@ -43,6 +45,46 @@ gymRouter.get("/approved", async (req, res): Promise<void> => {
   }
 });
 
+gymRouter.get("/pending", async (req, res): Promise<void> => {
+  try {
+    const gyms = await GymModel.find({ approved: false })
+      .populate("owner", "firstname lastname email")
+      .populate("exerciseTypes", "name difficulty")
+      .exec();
+    res.status(200).json(gyms);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération des salles en attente" });
+  }
+});
+
+gymRouter.get(
+  "/admin/stats",
+  authMiddleware,
+  roleMiddleware(["admin"]),
+  async (req, res): Promise<void> => {
+    try {
+      const totalGyms = await GymModel.countDocuments().exec();
+      const approvedGyms = await GymModel.countDocuments({ approved: true }).exec();
+      const pendingGyms = await GymModel.countDocuments({ approved: false }).exec();
+
+      const stats = {
+        total: totalGyms,
+        approved: approvedGyms,
+        pending: pendingGyms,
+        approvalRate: totalGyms > 0 ? ((approvedGyms / totalGyms) * 100).toFixed(2) + '%' : '0%'
+      };
+
+      res.status(200).json(stats);
+    } catch (error) {
+      res
+        .status(500)
+        .json({ error: "Erreur lors de la récupération des statistiques" });
+    }
+  }
+);
+
 gymRouter.get("/:id", async (req, res): Promise<void> => {
   try {
     const gym = await GymModel.findById(req.params.id)
@@ -69,15 +111,11 @@ gymRouter.post(
   async (req, res): Promise<void> => {
     try {
       const input = req.body as CreateGymInput;
-      if (!req.user) {
-        res.status(401).json({ error: "Utilisateur non authentifié" });
+      const currentUser = await UserModel.findById(req.user!.id).exec();
+
+      if (!currentUser) {
+        res.status(401).json({ error: "Utilisateur introuvable" });
         return;
-      }
-      const currentUser = await UserModel.findById(req.user.id).exec();
-      
-      if (!currentUser) { 
-        res.status(401).json({ error: "User introuvable" }); 
-        return; 
       }
 
       const isAdmin = currentUser.role === "admin";
@@ -86,9 +124,12 @@ gymRouter.post(
       if (isAdmin) {
         gymData.approved = true;
         const assignedOwner = await UserModel.findById(input.owner).exec();
-        if (!assignedOwner) { 
-          res.status(400).json({ error: "Propriétaire assigné introuvable" }); 
-          return; 
+        if (!assignedOwner) {
+          res.status(400).json({ error: "Propriétaire assigné introuvable" });
+          return;
+        } else if (!["admin", "manager"].includes(assignedOwner.role)) {
+          res.status(400).json({ error: "Le propriétaire assigné doit être un admin ou un manager" });
+          return;
         }
       } else {
         gymData.owner = currentUser.id;
@@ -96,9 +137,9 @@ gymRouter.post(
       }
 
       const gym = await GymModel.create(gymData);
-      res.status(201).json({ 
+      res.status(201).json({
         message: isAdmin ? "Salle créée et approuvée" : "Salle créée, en attente de validation",
-        gym 
+        gym
       });
     } catch (error) {
       res.status(500).json({ error: "Erreur création salle" });
@@ -136,14 +177,13 @@ gymRouter.patch(
   }
 );
 
+
 gymRouter.patch(
   "/:id/exerciseTypes",
   authMiddleware,
-  validateMiddleware({
-    body: z.object({
-      exerciseTypes: z.array(z.string()),
-    }),
-  }),
+  roleMiddleware(["admin", "manager"]),
+  gymOwnershipMiddleware(),
+  validateMiddleware({ body: exerciseTypesBody }),
   async (req, res): Promise<void> => {
     try {
       const { id } = req.params;
@@ -152,20 +192,6 @@ gymRouter.patch(
       const gym = await GymModel.findById(id).exec();
       if (!gym) {
         res.status(404).json({ error: "Salle non trouvée" });
-        return;
-      }
-
-      const user = await UserModel.findById(req.user?.id).exec();
-      if (!user) {
-        res.status(404).json({ error: "Utilisateur non trouvé" });
-        return;
-      }
-
-      const isOwner = gym.owner.toString() === req.user?.id;
-      const isAdmin = user.role === "admin";
-
-      if (!isOwner && !isAdmin) {
-        res.status(403).json({ error: "Accès refusé" });
         return;
       }
 
@@ -183,14 +209,15 @@ gymRouter.patch(
   }
 );
 
+
 gymRouter.patch(
-  "/:id",
+  "/:id/difficultyLevels",
   authMiddleware,
-  validateMiddleware({ body: updateGymBody }),
+  validateMiddleware({ body: difficultyLevelsBody }),
   async (req, res): Promise<void> => {
     try {
       const { id } = req.params;
-      const updates = req.body;
+      const { difficultyLevels } = req.body;
 
       const gym = await GymModel.findById(id).exec();
       if (!gym) {
@@ -212,9 +239,34 @@ gymRouter.patch(
         return;
       }
 
+      gym.difficultyLevels = difficultyLevels;
+      await gym.save();
+
+      res.status(200).json({ message: "Niveaux attribués", gym });
+    } catch (error) {
+      res.status(500).json({ error: "Erreur lors de l'attribution des niveaux" });
+    }
+  }
+);
+
+gymRouter.patch(
+  "/:id",
+  authMiddleware,
+  roleMiddleware(["admin", "manager"]),
+  gymOwnershipMiddleware(),
+  validateMiddleware({ body: updateGymBody }),
+  async (req, res): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+
       const updatedGym = await GymModel.findByIdAndUpdate(id, updates, {
         new: true,
       }).exec();
+      if (!updatedGym) {
+        res.status(404).json({ error: "Salle non trouvée" });
+        return;
+      }
       res.status(200).json({ message: "Salle mise à jour", gym: updatedGym });
     } catch (error) {
       res
@@ -224,31 +276,16 @@ gymRouter.patch(
   }
 );
 
-gymRouter.delete("/:id", authMiddleware, async (req, res): Promise<void> => {
-  try {
-    const { id } = req.params;
+gymRouter.delete(
+  "/:id",
+  authMiddleware,
+  roleMiddleware(["admin", "manager"]),
+  gymOwnershipMiddleware(),
+  async (req, res): Promise<void> => {
+    try {
+      const { id } = req.params;
 
-    const gym = await GymModel.findById(id).exec();
-    if (!gym) {
-      res.status(404).json({ error: "Salle non trouvée" });
-      return;
-    }
-
-    const user = await UserModel.findById(req.user?.id).exec();
-    if (!user) {
-      res.status(404).json({ error: "Utilisateur non trouvé" });
-      return;
-    }
-
-    const isOwner = gym.owner.toString() === req.user?.id;
-    const isAdmin = user.role === "admin";
-
-    if (!isOwner && !isAdmin) {
-      res.status(403).json({ error: "Accès refusé" });
-      return;
-    }
-
-    await GymModel.findByIdAndDelete(id).exec();
+      await GymModel.findByIdAndDelete(id).exec();
     res.status(204).send();
   } catch (error) {
     res

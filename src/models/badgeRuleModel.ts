@@ -3,10 +3,10 @@ import { Schema, model, Document } from "mongoose";
 export interface IBadgeRule extends Document {
     badgeName: string;
     conditionType: "totalPoints" | "completedTrainings" | "custom";
-    conditionField: string; // Champ à évaluer (ex: "totalPoints", "completedTrainings")
+    conditionField: string;
     operator: ">=" | ">" | "=" | "<" | "<=";
     value: number;
-    customCondition?: string; // Pour des conditions complexes (optionnel)
+    customCondition?: string;
     isActive: boolean;
     created_at: Date;
     updated_at: Date;
@@ -35,7 +35,6 @@ const badgeRuleSchema = new Schema<IBadgeRule>({
     strict: true
 });
 
-// Index pour optimiser les requêtes
 badgeRuleSchema.index({ badgeName: 1 });
 badgeRuleSchema.index({ isActive: 1 });
 

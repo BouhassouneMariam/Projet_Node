@@ -11,7 +11,8 @@ export interface IGym extends Document {
   description?: string;
   phone?: string;
   email?: string;
-  exerciseTypes: Types.ObjectId[]; 
+  exerciseTypes: Types.ObjectId[];
+  difficultyLevels: string[];
   created_at: Date;
   updated_at: Date;
 }
@@ -27,7 +28,9 @@ const gymSchema = new Schema<IGym>({
   description: { type: String },
   phone: { type: String },
   email: { type: String },
-  exerciseTypes: [{ type: Schema.Types.ObjectId, ref: "ExerciseType" }] 
+  exerciseTypes: [{ type: Schema.Types.ObjectId, ref: "ExerciseType" }],
+
+  difficultyLevels: { type: [String], default: [] }
 }, {
   timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
   strict: true
