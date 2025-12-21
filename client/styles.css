@@ -11,6 +11,7 @@
     --success: #10b981;
     --danger: #ef4444;
     --warning: #f59e0b;
+    --info: #3b82f6;
     --bg-main: #f8fafc;
     --bg-card: #ffffff;
     --text-primary: #1e293b;
@@ -209,6 +210,7 @@ body {
     height: 100vh;
     left: 0;
     top: 0;
+    overflow-y: auto;
 }
 
 .sidebar-header {
@@ -314,12 +316,53 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
 }
 
 .card-title {
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+/* ========== FILTERS ========== */
+.filters {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filter-group label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.filter-group select,
+.filter-group input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    min-width: 150px;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
 }
 
 /* ========== TABLES ========== */
@@ -390,6 +433,33 @@ tr:hover {
     color: #475569;
 }
 
+.badge-primary {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+/* ========== RARITY BADGES ========== */
+.badge-common {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.badge-rare {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-epic {
+    background: #ede9fe;
+    color: #5b21b6;
+}
+
+.badge-legendary {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+    border: 1px solid #fbbf24;
+}
+
 /* ========== BUTTONS ACTIONS ========== */
 .btn-success {
     background: var(--success);
@@ -418,6 +488,24 @@ tr:hover {
     background: #475569;
 }
 
+.btn-warning {
+    background: var(--warning);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
+.btn-info {
+    background: var(--info);
+    color: white;
+}
+
+.btn-info:hover {
+    background: #2563eb;
+}
+
 .btn-sm {
     padding: 6px 12px;
     font-size: 12px;
@@ -426,6 +514,154 @@ tr:hover {
 .btn-group {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ========== STATS CARDS ========== */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.stat-card.success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.stat-card.warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.stat-card.info {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.stat-label {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+}
+
+/* ========== CHALLENGE CARDS ========== */
+.challenge-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.challenge-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--border);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.challenge-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.challenge-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.challenge-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.challenge-card-body {
+    margin-bottom: 16px;
+}
+
+.challenge-card-body p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.challenge-meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.challenge-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.challenge-card-footer {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+/* ========== INVITATIONS ========== */
+.invitation-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    border-left: 4px solid var(--primary);
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.invitation-card.unseen {
+    background: #f0f9ff;
+    border-left-color: var(--info);
+}
+
+.invitation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.invitation-from {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.invitation-date {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.invitation-message {
+    background: #f8fafc;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 12px 0;
+    font-style: italic;
+    color: var(--text-secondary);
 }
 
 /* ========== MODALS ========== */
@@ -516,31 +752,90 @@ tr:hover {
     font-size: 14px;
 }
 
-/* ========== STATS CARDS ========== */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-    margin-bottom: 32px;
-}
-
-.stat-card {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-    color: white;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
-}
-
-.stat-label {
+.info-message {
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-top: 16px;
     font-size: 14px;
-    opacity: 0.9;
+}
+
+/* ========== TABS ========== */
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0;
+}
+
+.tab {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+}
+
+.tab:hover {
+    color: var(--primary);
+}
+
+.tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+/* ========== REWARD GRID ========== */
+.reward-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.reward-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.reward-card:hover {
+    transform: translateY(-2px);
+}
+
+.reward-card.legendary {
+    border: 2px solid #fbbf24;
+    background: linear-gradient(135deg, #fffbeb, white);
+}
+
+.reward-card.epic {
+    border: 2px solid #8b5cf6;
+}
+
+.reward-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.reward-name {
+    font-size: 16px;
+    font-weight: 600;
     margin-bottom: 8px;
 }
 
-.stat-value {
-    font-size: 32px;
-    font-weight: 700;
+.reward-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
 }
 
 /* ========== LOADING ========== */
@@ -585,6 +880,17 @@ tr:hover {
     margin-bottom: 24px;
 }
 
+/* ========== NOTIFICATION BADGE ========== */
+.notification-badge {
+    background: var(--danger);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 8px;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 768px) {
     .sidebar {
@@ -619,6 +925,15 @@ tr:hover {
     .modal-content {
         padding: 20px;
     }
+
+    .filters {
+        flex-direction: column;
+    }
+
+    .filter-group select,
+    .filter-group input {
+        width: 100%;
+    }
 }
 
 /* ========== SCROLL BAR ========== */
@@ -638,4 +953,289 @@ tr:hover {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
+}
+
+/* ========== CHECKBOX ========== */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* ========== PROGRESS BAR ========== */
+.progress-bar {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+/* ========== BADGES GRID ========== */
+.badges-grid, .rewards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.badge-card, .reward-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+
+.badge-card:hover, .reward-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.badge-card.locked {
+    opacity: 0.6;
+    filter: grayscale(0.5);
+}
+
+.badge-card.earned {
+    border: 2px solid var(--success);
+}
+
+.badge-icon, .reward-icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.badge-name, .reward-name {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.badge-desc, .reward-desc {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.badge-rarity {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.rarity-common .badge-rarity { background: #e0e0e0; color: #666; }
+.rarity-rare .badge-rarity { background: #bbdefb; color: #1565c0; }
+.rarity-epic .badge-rarity { background: #e1bee7; color: #7b1fa2; }
+.rarity-legendary .badge-rarity { 
+    background: linear-gradient(135deg, #ffd700, #ff8c00); 
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.rarity-legendary {
+    border: 2px solid #ffd700;
+    background: linear-gradient(135deg, #fffde7 0%, #fff8e1 100%);
+}
+
+.badge-locked {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+.badge-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+.badge-actions, .reward-actions {
+    margin-top: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.reward-cost {
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.75rem;
+}
+
+.reward-card.claimed {
+    border: 2px solid var(--success);
+    background: #f0fdf4;
+}
+
+/* ========== SOCIAL/INVITATIONS ========== */
+.invitation-card {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--primary);
+}
+
+.invitation-card.unseen {
+    background: #eff6ff;
+    border-left-color: var(--warning);
+}
+
+.invitation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.invitation-from {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.invitation-date {
+    color: var(--text-muted);
+}
+
+.invitation-card h4 {
+    margin: 0.5rem 0;
+}
+
+.invitation-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.share-message {
+    background: white;
+    padding: 0.5rem;
+    border-radius: 4px;
+    color: var(--text-muted);
+    margin: 0.5rem 0;
+}
+
+.notification-badge {
+    background: var(--danger);
+    color: white;
+    border-radius: 50%;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+}
+
+/* ========== TOAST NOTIFICATIONS ========== */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.toast-success { background: var(--success); }
+.toast-error { background: var(--danger); }
+.toast-info { background: var(--primary); }
+.toast-warning { background: var(--warning); color: #333; }
+
+/* ========== USER SCORE CARD ========== */
+.user-score-card {
+    background: linear-gradient(135deg, var(--primary) 0%, #5b21b6 100%);
+    color: white;
+}
+
+.user-score-card h3 {
+    color: white;
+    margin-bottom: 1rem;
+}
+
+.user-score-card .stat-card {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+}
+
+.user-score-card .stat-label,
+.user-score-card .stat-value {
+    color: white;
+}
+
+/* ========== TABLE HIGHLIGHT ========== */
+.data-table tr.highlight {
+    background: #eff6ff;
+}
+
+.data-table tr.highlight td {
+    font-weight: 600;
+}
+
+/* ========== EMPTY STATE ========== */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state h3 {
+    color: var(--text);
+    margin-bottom: 0.5rem;
+}
+
+/* ========== FILTERS ========== */
+.filters-section {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.filters-grid .form-group {
+    margin: 0;
+}
+
+.filters-grid label {
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 0.5rem;
 }

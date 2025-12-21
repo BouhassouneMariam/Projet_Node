@@ -3,10 +3,15 @@ const API_URL = 'http://localhost:3000';
 let authToken = localStorage.getItem('authToken');
 let currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
 
+// Cache pour les données
+let cachedExerciseTypes = [];
+let cachedGyms = [];
+let cachedUsers = [];
+
 // ========== DÉFINITION DES PERMISSIONS PAR RÔLE ==========
 const ROLE_PERMISSIONS = {
     admin: {
-        pages: ['users', 'gyms', 'exercises', 'challenges', 'badges', 'badgeRules', 'trainings', 'scores'],
+        pages: ['users', 'gyms', 'exercises', 'challenges', 'social', 'badges', 'rewards', 'badgeRules', 'trainings', 'scores'],
         canCreateUser: true,
         canDeleteUser: true,
         canApproveGym: true,
@@ -17,6 +22,7 @@ const ROLE_PERMISSIONS = {
         canCreateBadge: true,
         canDeleteBadge: true,
         canManageBadgeRules: true,
+        canManageRewards: true,
         canSeeAllUsers: true,
         canSeeAllGyms: true,
         canCreateChallenge: true,
@@ -24,7 +30,7 @@ const ROLE_PERMISSIONS = {
         canSeeAllTrainings: true,
     },
     manager: {
-        pages: ['gyms', 'exercises', 'challenges', 'trainings', 'scores'],
+        pages: ['gyms', 'exercises', 'challenges', 'social', 'trainings', 'scores', 'rewards'],
         canCreateUser: false,
         canDeleteUser: false,
         canApproveGym: false,
@@ -35,6 +41,7 @@ const ROLE_PERMISSIONS = {
         canCreateBadge: false,
         canDeleteBadge: false,
         canManageBadgeRules: false,
+        canManageRewards: false,
         canSeeAllUsers: false,
         canSeeAllGyms: true,
         canCreateChallenge: true,
@@ -42,7 +49,7 @@ const ROLE_PERMISSIONS = {
         canSeeAllTrainings: false,
     },
     member: {
-        pages: ['challenges', 'trainings', 'scores'],
+        pages: ['challenges', 'social', 'trainings', 'scores', 'rewards'],
         canCreateUser: false,
         canDeleteUser: false,
         canApproveGym: false,
@@ -53,6 +60,7 @@ const ROLE_PERMISSIONS = {
         canCreateBadge: false,
         canDeleteBadge: false,
         canManageBadgeRules: false,
+        canManageRewards: false,
         canSeeAllUsers: false,
         canSeeAllGyms: false,
         canCreateChallenge: true,
@@ -238,44 +246,41 @@ function logout() {
 }
 
 async function apiCall(endpoint, method = 'GET', body = null) {
-  const options = {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${authToken}`
+    const options = {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        }
+    };
+    if (body) options.body = JSON.stringify(body);
+
+    const response = await fetch(`${API_URL}${endpoint}`, options);
+
+    if (response.status === 204) return null;
+
+    if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        let msg = 'Une erreur est survenue';
+
+        if (contentType.includes('application/json')) {
+            const err = await response.json().catch(() => ({}));
+            msg = err.error || err.message || msg;
+        } else {
+            msg = await response.text().catch(() => msg);
+        }
+
+        throw new Error(msg);
     }
-  };
-  if (body) options.body = JSON.stringify(body);
 
-  const response = await fetch(`${API_URL}${endpoint}`, options);
-
-  if (response.status === 204) return null;
-
-  // Gestion des erreurs
-  if (!response.ok) {
     const contentType = response.headers.get('content-type') || '';
-    let msg = 'Une erreur est survenue';
-
     if (contentType.includes('application/json')) {
-      const err = await response.json().catch(() => ({}));
-      msg = err.error || err.message || msg;
+        return response.json();
     } else {
-      msg = await response.text().catch(() => msg);
+        const text = await response.text();
+        return { message: text };
     }
-
-    throw new Error(msg);
-  }
-
-  // ✅ Gestion du succès: JSON ou texte
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    return response.json();
-  } else {
-    const text = await response.text();
-    return { message: text };
-  }
 }
-
 
 // ========== NAVIGATION ==========
 document.querySelectorAll('.nav-item').forEach(item => {
@@ -303,7 +308,9 @@ function loadPage(page) {
         'gyms': 'Salles de Sport',
         'exercises': 'Types d\'Exercices',
         'challenges': 'Défis',
+        'social': 'Défis Sociaux',
         'badges': 'Badges',
+        'rewards': 'Récompenses',
         'badgeRules': 'Règles de Badges',
         'trainings': 'Entraînements',
         'scores': 'Classement'
@@ -316,7 +323,9 @@ function loadPage(page) {
         'gyms': renderGymsPage,
         'exercises': renderExercisesPage,
         'challenges': renderChallengesPage,
+        'social': renderSocialPage,
         'badges': renderBadgesPage,
+        'rewards': renderRewardsPage,
         'badgeRules': renderBadgeRulesPage,
         'trainings': renderTrainingsPage,
         'scores': renderScoresPage
@@ -336,6 +345,8 @@ async function renderUsersPage() {
 
     try {
         const users = await apiCall('/user/getAll');
+        cachedUsers = users;
+        
         content.innerHTML = `
             <div class="card">
                 <div class="card-header">
@@ -365,9 +376,11 @@ async function renderUsersPage() {
                                     ${isAdmin() ? `
                                         <td>
                                             <div class="btn-group">
-                                                <button class="btn btn-sm btn-secondary" onclick="editUser('${user._id}')">Modifier</button>
-                                                <button class="btn btn-sm btn-warning" onclick="toggleUserActive('${user._id}')">${user.active ? 'Désactiver' : 'Activer'}</button>
-                                                <button class="btn btn-sm btn-danger" onclick="deleteUser('${user._id}')">Supprimer</button>
+                                                ${user.role !== 'admin' ? `
+                                                    <button class="btn btn-sm btn-secondary" onclick="editUser('${user._id}')">Modifier</button>
+                                                    <button class="btn btn-sm btn-warning" onclick="toggleUserActive('${user._id}')">${user.active ? 'Désactiver' : 'Activer'}</button>
+                                                    <button class="btn btn-sm btn-danger" onclick="deleteUser('${user._id}')">Supprimer</button>
+                                                ` : '<span class="badge badge-secondary">Admin protégé</span>'}
                                             </div>
                                         </td>
                                     ` : ''}
@@ -395,7 +408,6 @@ function showCreateUserModal() {
                 <select name="role" required>
                     <option value="member">Member</option>
                     <option value="manager">Manager</option>
-                    <option value="admin">Admin</option>
                 </select>
             </div>
             <div class="modal-footer">
@@ -426,6 +438,13 @@ async function toggleUserActive(id) {
 
 async function deleteUser(id) {
     if (!hasPermission('canDeleteUser')) return showError('Permission refusée');
+    
+    // Vérifier que ce n'est pas un admin
+    const user = cachedUsers.find(u => u._id === id);
+    if (user && user.role === 'admin') {
+        return showError('Impossible de supprimer un administrateur');
+    }
+    
     if (!confirm('Supprimer cet utilisateur ?')) return;
     try {
         await apiCall(`/user/delete/${id}`, 'DELETE');
@@ -442,6 +461,7 @@ async function renderGymsPage() {
     try {
         const endpoint = isMember() ? '/gym/approved' : '/gym/getAll';
         const gyms = await apiCall(endpoint);
+        cachedGyms = gyms;
         
         content.innerHTML = `
             <div class="card">
@@ -497,7 +517,9 @@ async function showCreateGymModal() {
     let usersOptions = '';
     if (isAdmin()) {
         const users = await apiCall('/user/getAll');
-        usersOptions = users.map(u => `<option value="${u._id}">${u.firstname} ${u.lastname}</option>`).join('');
+        // Filtrer pour n'afficher que les admins et managers
+        const eligibleUsers = users.filter(u => u.role === 'admin' || u.role === 'manager');
+        usersOptions = eligibleUsers.map(u => `<option value="${u._id}">${u.firstname} ${u.lastname} (${u.role})</option>`).join('');
     }
 
     showModal('Créer une salle', `
@@ -555,6 +577,8 @@ async function renderExercisesPage() {
 
     try {
         const exercises = await apiCall('/exerciseType/getAll');
+        cachedExerciseTypes = exercises;
+        
         content.innerHTML = `
             <div class="card">
                 <div class="card-header">
@@ -642,36 +666,88 @@ async function deleteExercise(id) {
     } catch (error) { alert(error.message); }
 }
 
-// ========== PAGE DÉFIS ==========
+// ========== PAGE DÉFIS AVEC FILTRES AVANCÉS ==========
 async function renderChallengesPage() {
     const content = document.getElementById('content-area');
     content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-        const challenges = await apiCall('/challenge/getAll');
+        const [challenges, exercises, gyms] = await Promise.all([
+            apiCall('/challenge/getAll'),
+            apiCall('/exerciseType/getAll'),
+            apiCall('/gym/approved')
+        ]);
+        
         window.allChallenges = challenges;
+        cachedExerciseTypes = exercises;
+        cachedGyms = gyms;
+        
+        // Récupérer les salles possédées par l'utilisateur courant (pour le manager)
+        const myGyms = isAdmin() ? gyms : gyms.filter(g => g.owner?._id === currentUser.id);
+        window.myGyms = myGyms;
         
         content.innerHTML = `
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total des défis</div>
+                    <div class="stat-value">${challenges.length}</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-label">Défis débutant</div>
+                    <div class="stat-value">${challenges.filter(c => c.difficulty === 'beginner').length}</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-label">Défis intermédiaire</div>
+                    <div class="stat-value">${challenges.filter(c => c.difficulty === 'intermediate').length}</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-label">Défis avancé</div>
+                    <div class="stat-value">${challenges.filter(c => c.difficulty === 'advanced').length}</div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Défis</h3>
-                    ${hasPermission('canCreateChallenge') ? `<button class="btn btn-primary" onclick="showCreateChallengeModal()">+ Nouveau défi</button>` : ''}
+                    <h3 class="card-title">Explorer les défis</h3>
+                    ${hasPermission('canCreateChallenge') ? `<button class="btn btn-primary" onclick="showCreateChallengeModal()">+ Créer un défi</button>` : ''}
                 </div>
-                <div class="filters" style="margin-bottom: 20px;">
-                    <select id="filter-difficulty" onchange="filterChallenges()" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                        <option value="">Toutes difficultés</option>
-                        <option value="beginner">Débutant</option>
-                        <option value="intermediate">Intermédiaire</option>
-                        <option value="advanced">Avancé</option>
-                    </select>
+                
+                <!-- Filtres avancés -->
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Difficulté</label>
+                        <select id="filter-difficulty" onchange="filterChallenges()">
+                            <option value="">Toutes</option>
+                            <option value="beginner">Débutant</option>
+                            <option value="intermediate">Intermédiaire</option>
+                            <option value="advanced">Avancé</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Type d'exercice</label>
+                        <select id="filter-exercise" onchange="filterChallenges()">
+                            <option value="">Tous</option>
+                            ${exercises.map(e => `<option value="${e._id}">${e.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Durée max (jours)</label>
+                        <input type="number" id="filter-duration" min="1" placeholder="Ex: 30" onchange="filterChallenges()">
+                    </div>
+                    <div class="filter-group">
+                        <label>Salle</label>
+                        <select id="filter-gym" onchange="filterChallenges()">
+                            <option value="">Toutes</option>
+                            ${gyms.map(g => `<option value="${g._id}">${g.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="resetFilters()">Réinitialiser</button>
+                    </div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr><th>Titre</th><th>Exercice</th><th>Difficulté</th><th>Durée</th><th>Participants</th><th>Actions</th></tr>
-                        </thead>
-                        <tbody id="challenges-body">${renderChallengesRows(challenges)}</tbody>
-                    </table>
+                
+                <div id="challenges-container" class="challenge-grid">
+                    ${renderChallengeCards(challenges)}
                 </div>
             </div>
         `;
@@ -680,32 +756,99 @@ async function renderChallengesPage() {
     }
 }
 
-function renderChallengesRows(challenges) {
-    return challenges.map(ch => `
-        <tr>
-            <td><strong>${ch.title}</strong></td>
-            <td>${ch.exerciseType?.name || '-'}</td>
-            <td><span class="badge badge-${ch.difficulty === 'beginner' ? 'success' : ch.difficulty === 'intermediate' ? 'warning' : 'danger'}">${ch.difficulty === 'beginner' ? 'Débutant' : ch.difficulty === 'intermediate' ? 'Intermédiaire' : 'Avancé'}</span></td>
-            <td>${ch.duration} jours</td>
-            <td>${ch.participants?.length || 0}/${ch.maxParticipants || '∞'}</td>
-            <td>
-                <div class="btn-group">
-                    ${isMember() ? `<button class="btn btn-sm btn-success" onclick="joinChallenge('${ch._id}')">Rejoindre</button>` : ''}
-                    ${(isAdmin() || ch.creator?._id === currentUser.id) ? `
-                        <button class="btn btn-sm btn-secondary" onclick="editChallenge('${ch._id}')">Modifier</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteChallenge('${ch._id}')">Supprimer</button>
+function renderChallengeCards(challenges) {
+    if (challenges.length === 0) {
+        return '<div class="empty-state"><h3>Aucun défi trouvé</h3><p>Modifiez vos filtres ou créez un nouveau défi</p></div>';
+    }
+    
+    return challenges.map(ch => {
+        const isParticipant = ch.participants?.some(p => (p._id || p) === currentUser.id);
+        const isCreator = ch.creator?._id === currentUser.id;
+        const canEdit = isAdmin() || isCreator;
+        
+        return `
+            <div class="challenge-card">
+                <div class="challenge-card-header">
+                    <h4 class="challenge-card-title">${ch.title}</h4>
+                    <span class="badge badge-${ch.difficulty === 'beginner' ? 'success' : ch.difficulty === 'intermediate' ? 'warning' : 'danger'}">
+                        ${ch.difficulty === 'beginner' ? 'Débutant' : ch.difficulty === 'intermediate' ? 'Intermédiaire' : 'Avancé'}
+                    </span>
+                </div>
+                <div class="challenge-card-body">
+                    <p>${ch.description?.substring(0, 100)}${ch.description?.length > 100 ? '...' : ''}</p>
+                    <div class="challenge-meta">
+                        <span class="challenge-meta-item">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            ${ch.duration} jours
+                        </span>
+                        <span class="challenge-meta-item">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                            </svg>
+                            ${ch.participants?.length || 0} participant(s)
+                        </span>
+                        ${ch.exerciseType ? `
+                            <span class="challenge-meta-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                </svg>
+                                ${ch.exerciseType.name || 'N/A'}
+                            </span>
+                        ` : ''}
+                    </div>
+                    ${ch.gym ? `<p style="font-size: 12px; color: var(--text-secondary);">📍 ${ch.gym.name || 'Salle'}</p>` : ''}
+                </div>
+                <div class="challenge-card-footer">
+                    ${!isParticipant && !isCreator ? `
+                        <button class="btn btn-success btn-sm" onclick="joinChallenge('${ch._id}')">Rejoindre</button>
+                    ` : isParticipant ? `
+                        <button class="btn btn-primary btn-sm" onclick="completeChallenge('${ch._id}')">Compléter</button>
+                    ` : ''}
+                    <button class="btn btn-info btn-sm" onclick="shareChallenge('${ch._id}')">Partager</button>
+                    ${canEdit ? `
+                        <button class="btn btn-secondary btn-sm" onclick="editChallenge('${ch._id}')">Modifier</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteChallenge('${ch._id}')">Supprimer</button>
                     ` : ''}
                 </div>
-            </td>
-        </tr>
-    `).join('');
+            </div>
+        `;
+    }).join('');
 }
 
 function filterChallenges() {
     const difficulty = document.getElementById('filter-difficulty').value;
+    const exerciseType = document.getElementById('filter-exercise').value;
+    const duration = document.getElementById('filter-duration').value;
+    const gymId = document.getElementById('filter-gym').value;
+    
     let filtered = window.allChallenges;
-    if (difficulty) filtered = filtered.filter(ch => ch.difficulty === difficulty);
-    document.getElementById('challenges-body').innerHTML = renderChallengesRows(filtered);
+    
+    if (difficulty) {
+        filtered = filtered.filter(ch => ch.difficulty === difficulty);
+    }
+    if (exerciseType) {
+        filtered = filtered.filter(ch => ch.exerciseType?._id === exerciseType);
+    }
+    if (duration) {
+        filtered = filtered.filter(ch => ch.duration <= parseInt(duration));
+    }
+    if (gymId) {
+        filtered = filtered.filter(ch => ch.gym?._id === gymId);
+    }
+    
+    document.getElementById('challenges-container').innerHTML = renderChallengeCards(filtered);
+}
+
+function resetFilters() {
+    document.getElementById('filter-difficulty').value = '';
+    document.getElementById('filter-exercise').value = '';
+    document.getElementById('filter-duration').value = '';
+    document.getElementById('filter-gym').value = '';
+    document.getElementById('challenges-container').innerHTML = renderChallengeCards(window.allChallenges);
 }
 
 async function joinChallenge(id) {
@@ -716,22 +859,118 @@ async function joinChallenge(id) {
     } catch (error) { alert(error.message); }
 }
 
+async function completeChallenge(id) {
+    if (!confirm('Confirmer que vous avez complété ce défi ?')) return;
+    try {
+        const result = await apiCall(`/challenge/${id}/complete`, 'POST', { userId: currentUser.id });
+        showSuccess(`Félicitations ! Vous avez gagné ${result.pointsEarned} points !`);
+        renderChallengesPage();
+    } catch (error) { alert(error.message); }
+}
+
+async function shareChallenge(id) {
+    try {
+        // Charger les utilisateurs pour le partage
+        let users = [];
+        if (isAdmin()) {
+            users = await apiCall('/user/getAll');
+        } else {
+            // Pour les non-admins, on ne peut pas voir tous les utilisateurs
+            // On affiche un champ texte pour entrer l'ID ou email
+        }
+        
+        const usersOptions = users
+            .filter(u => u._id !== currentUser.id)
+            .map(u => `<option value="${u._id}">${u.firstname} ${u.lastname} (${u.email})</option>`)
+            .join('');
+        
+        showModal('Partager le défi', `
+            <form id="share-challenge-form">
+                ${users.length > 0 ? `
+                    <div class="form-group">
+                        <label>Partager avec</label>
+                        <select name="sharedWith" required>
+                            <option value="">Sélectionner un utilisateur</option>
+                            ${usersOptions}
+                        </select>
+                    </div>
+                ` : `
+                    <div class="form-group">
+                        <label>ID de l'utilisateur</label>
+                        <input type="text" name="sharedWith" required placeholder="ID de l'utilisateur">
+                    </div>
+                `}
+                <div class="form-group">
+                    <label>Message (optionnel)</label>
+                    <textarea name="message" placeholder="Essaie ce défi !"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Partager</button>
+                </div>
+            </form>
+        `);
+        
+        document.getElementById('share-challenge-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(e.target));
+            try {
+                await apiCall(`/challenge/${id}/share`, 'POST', data);
+                closeModal();
+                showSuccess('Défi partagé avec succès !');
+            } catch (error) { alert(error.message); }
+        });
+    } catch (error) { alert(error.message); }
+}
+
 async function showCreateChallengeModal() {
     if (!hasPermission('canCreateChallenge')) return showError('Permission refusée');
-    const exercises = await apiCall('/exerciseType/getAll');
-    const gyms = await apiCall('/gym/approved');
+    
+    // Charger les données nécessaires
+    const exercises = cachedExerciseTypes.length > 0 ? cachedExerciseTypes : await apiCall('/exerciseType/getAll');
+    
+    // Pour les gyms, utiliser uniquement les salles possédées par l'utilisateur (sauf admin)
+    let gymsForSelect = [];
+    if (isAdmin()) {
+        gymsForSelect = await apiCall('/gym/approved');
+    } else if (isManager()) {
+        const allGyms = await apiCall('/gym/getAll');
+        gymsForSelect = allGyms.filter(g => g.owner?._id === currentUser.id && g.approved);
+    }
+    // Les membres ne peuvent pas associer de salle
 
     showModal('Créer un défi', `
         <form id="create-challenge-form">
             <div class="form-group"><label>Titre</label><input type="text" name="title" required></div>
             <div class="form-group"><label>Description</label><textarea name="description" required></textarea></div>
             <input type="hidden" name="creator" value="${currentUser.id}">
-            <div class="form-group"><label>Type d'exercice</label><select name="exerciseType" required>${exercises.map(e => `<option value="${e._id}">${e.name}</option>`).join('')}</select></div>
-            <div class="form-group"><label>Salle (optionnel)</label><select name="gym"><option value="">Aucune</option>${gyms.map(g => `<option value="${g._id}">${g.name}</option>`).join('')}</select></div>
-            <div class="form-group"><label>Difficulté</label><select name="difficulty" required><option value="beginner">Débutant</option><option value="intermediate">Intermédiaire</option><option value="advanced">Avancé</option></select></div>
-            <div class="form-group"><label>Durée (jours)</label><input type="number" name="duration" required min="1"></div>
-            <div class="form-group"><label>Objectifs</label><textarea name="objectives" required></textarea></div>
-            <div class="form-group"><label>Max participants</label><input type="number" name="maxParticipants" min="1"></div>
+            <div class="form-group">
+                <label>Type d'exercice</label>
+                <select name="exerciseType" required>
+                    <option value="">Sélectionner un exercice</option>
+                    ${exercises.map(e => `<option value="${e._id}">${e.name} (${e.difficulty})</option>`).join('')}
+                </select>
+            </div>
+            ${(isAdmin() || isManager()) && gymsForSelect.length > 0 ? `
+                <div class="form-group">
+                    <label>Salle (optionnel - ${isManager() ? 'vos salles uniquement' : 'toutes les salles'})</label>
+                    <select name="gym">
+                        <option value="">Aucune salle</option>
+                        ${gymsForSelect.map(g => `<option value="${g._id}">${g.name}</option>`).join('')}
+                    </select>
+                </div>
+            ` : '<input type="hidden" name="gym" value="">'}
+            <div class="form-group">
+                <label>Difficulté</label>
+                <select name="difficulty" required>
+                    <option value="beginner">Débutant</option>
+                    <option value="intermediate">Intermédiaire</option>
+                    <option value="advanced">Avancé</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Durée (jours)</label><input type="number" name="duration" required min="1" value="7"></div>
+            <div class="form-group"><label>Objectifs</label><textarea name="objectives" required placeholder="Décrivez les objectifs à atteindre"></textarea></div>
+            <div class="form-group"><label>Max participants (optionnel)</label><input type="number" name="maxParticipants" min="1" placeholder="50"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
                 <button type="submit" class="btn btn-primary">Créer</button>
@@ -745,11 +984,12 @@ async function showCreateChallengeModal() {
         data.duration = parseInt(data.duration);
         if (data.maxParticipants) data.maxParticipants = parseInt(data.maxParticipants);
         if (!data.gym) delete data.gym;
+        
         try {
             await apiCall('/challenge/create', 'POST', data);
             closeModal();
             renderChallengesPage();
-            showSuccess('Défi créé');
+            showSuccess('Défi créé avec succès !');
         } catch (error) { alert(error.message); }
     });
 }
@@ -763,172 +1003,220 @@ async function deleteChallenge(id) {
     } catch (error) { alert(error.message); }
 }
 
-// ========== PAGE BADGES (Admin) ==========
-async function renderBadgesPage() {
+// ========== PAGE DÉFIS SOCIAUX ==========
+async function renderSocialPage() {
     const content = document.getElementById('content-area');
-    if (!isAdmin()) {
-        content.innerHTML = '<div class="error-message">Accès refusé - Réservé aux administrateurs</div>';
-        return;
-    }
     content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-        const badges = await apiCall('/badge/getAll');
+        const [received, sent, invitations] = await Promise.all([
+            apiCall('/challenge/shared/received').catch(() => []),
+            apiCall('/challenge/shared/sent').catch(() => []),
+            apiCall(`/social/invitations/${currentUser.id}`).catch(() => [])
+        ]);
+        
+        const unseenCount = received.filter(s => !s.seen).length;
+        
         content.innerHTML = `
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Badges</h3>
-                    <button class="btn btn-primary" onclick="showCreateBadgeModal()">+ Nouveau badge</button>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Défis reçus</div>
+                    <div class="stat-value">${received.length}</div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>Nom</th><th>Description</th><th>Icon URL</th><th>Actions</th></tr></thead>
-                        <tbody>
-                            ${badges.map(b => `
-                                <tr>
-                                    <td><strong>${b.name}</strong></td>
-                                    <td>${b.description}</td>
-                                    <td>${b.iconUrl}</td>
-                                    <td>
-                                        <div class="btn-group">
-                                            <button class="btn btn-sm btn-secondary" onclick="editBadge('${b._id}')">Modifier</button>
-                                            <button class="btn btn-sm btn-danger" onclick="deleteBadge('${b._id}')">Supprimer</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                <div class="stat-card warning">
+                    <div class="stat-label">Non vus</div>
+                    <div class="stat-value">${unseenCount}</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-label">Défis envoyés</div>
+                    <div class="stat-value">${sent.length}</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-label">Invitations 1v1</div>
+                    <div class="stat-value">${invitations.length}</div>
                 </div>
             </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchSocialTab('received')">Défis reçus ${unseenCount > 0 ? `<span class="notification-badge">${unseenCount}</span>` : ''}</button>
+                <button class="tab" onclick="switchSocialTab('sent')">Défis envoyés</button>
+                <button class="tab" onclick="switchSocialTab('invitations')">Invitations 1v1</button>
+            </div>
+
+            <div id="social-content">
+                ${renderReceivedChallenges(received)}
+            </div>
         `;
+        
+        window.socialData = { received, sent, invitations };
     } catch (error) {
         content.innerHTML = `<div class="error-message">${error.message}</div>`;
     }
 }
 
-function showCreateBadgeModal() {
-    showModal('Créer un badge', `
-        <form id="create-badge-form">
-            <div class="form-group"><label>Nom</label><input type="text" name="name" required></div>
-            <div class="form-group"><label>Description</label><textarea name="description" required></textarea></div>
-            <div class="form-group"><label>URL de l'icône</label><input type="url" name="iconUrl" required></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-                <button type="submit" class="btn btn-primary">Créer</button>
-            </div>
-        </form>
-    `);
-    document.getElementById('create-badge-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        try {
-            await apiCall('/badge/create', 'POST', Object.fromEntries(new FormData(e.target)));
-            closeModal();
-            renderBadgesPage();
-            showSuccess('Badge créé');
-        } catch (error) { alert(error.message); }
-    });
+function switchSocialTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    const container = document.getElementById('social-content');
+    
+    switch(tab) {
+        case 'received':
+            container.innerHTML = renderReceivedChallenges(window.socialData.received);
+            break;
+        case 'sent':
+            container.innerHTML = renderSentChallenges(window.socialData.sent);
+            break;
+        case 'invitations':
+            container.innerHTML = renderInvitations(window.socialData.invitations);
+            break;
+    }
 }
 
-async function deleteBadge(id) {
-    if (!confirm('Supprimer ce badge ?')) return;
+function renderReceivedChallenges(shares) {
+    if (shares.length === 0) {
+        return '<div class="card"><div class="empty-state"><h3>Aucun défi partagé reçu</h3><p>Les défis que vos amis partagent avec vous apparaîtront ici</p></div></div>';
+    }
+    
+    return `<div class="card">
+        ${shares.map(share => `
+            <div class="invitation-card ${!share.seen ? 'unseen' : ''}">
+                <div class="invitation-header">
+                    <span class="invitation-from">De: ${share.sharedBy?.firstname || ''} ${share.sharedBy?.lastname || ''}</span>
+                    <span class="invitation-date">${new Date(share.created_at).toLocaleDateString('fr-FR')}</span>
+                </div>
+                <h4>${share.challenge?.title || 'Défi'}</h4>
+                <p>${share.challenge?.description || ''}</p>
+                ${share.message ? `<p class="share-message"><em>"${share.message}"</em></p>` : ''}
+                <div class="invitation-actions">
+                    <button class="btn btn-primary btn-sm" onclick="joinChallenge('${share.challenge?._id}')">Rejoindre</button>
+                    <button class="btn btn-secondary btn-sm" onclick="markShareSeen('${share._id}')">Marquer comme vu</button>
+                </div>
+            </div>
+        `).join('')}
+    </div>`;
+}
+
+function renderSentChallenges(shares) {
+    if (shares.length === 0) {
+        return '<div class="card"><div class="empty-state"><h3>Aucun défi envoyé</h3><p>Partagez des défis avec vos amis depuis la page Défis</p></div></div>';
+    }
+    
+    return `<div class="card">
+        ${shares.map(share => `
+            <div class="invitation-card">
+                <div class="invitation-header">
+                    <span class="invitation-from">À: ${share.sharedWith?.firstname || ''} ${share.sharedWith?.lastname || ''}</span>
+                    <span class="invitation-date">${new Date(share.created_at).toLocaleDateString('fr-FR')}</span>
+                </div>
+                <h4>${share.challenge?.title || 'Défi'}</h4>
+                <p>${share.challenge?.description || ''}</p>
+                ${share.message ? `<p class="share-message"><em>"${share.message}"</em></p>` : ''}
+                <span class="badge ${share.seen ? 'badge-success' : 'badge-warning'}">${share.seen ? 'Vu' : 'Non vu'}</span>
+            </div>
+        `).join('')}
+    </div>`;
+}
+
+function renderInvitations(invitations) {
+    if (invitations.length === 0) {
+        return '<div class="card"><div class="empty-state"><h3>Aucune invitation 1v1</h3><p>Lancez un défi à un ami depuis la page Défis</p></div></div>';
+    }
+    
+    return `<div class="card">
+        ${invitations.map(inv => `
+            <div class="invitation-card">
+                <div class="invitation-header">
+                    <span class="invitation-from">De: ${inv.challenger?.firstname || ''} ${inv.challenger?.lastname || ''}</span>
+                    <span class="invitation-date">${new Date(inv.created_at).toLocaleDateString('fr-FR')}</span>
+                </div>
+                <h4>${inv.challenge?.title || 'Défi 1v1'}</h4>
+                <p>${inv.challenge?.description || ''}</p>
+                <div class="invitation-actions">
+                    <button class="btn btn-primary btn-sm" onclick="acceptInvitation('${inv._id}')">Accepter</button>
+                    <button class="btn btn-danger btn-sm" onclick="declineInvitation('${inv._id}')">Refuser</button>
+                </div>
+            </div>
+        `).join('')}
+    </div>`;
+}
+
+async function markShareSeen(shareId) {
     try {
-        await apiCall(`/badge/delete/${id}`, 'DELETE');
-        renderBadgesPage();
-        showSuccess('Badge supprimé');
+        await apiCall(`/challenge/shared/${shareId}/seen`, 'PUT');
+        renderSocialPage();
     } catch (error) { alert(error.message); }
 }
 
-// ========== PAGE RÈGLES BADGES (Admin) ==========
-async function renderBadgeRulesPage() {
-    const content = document.getElementById('content-area');
-    if (!hasPermission('canManageBadgeRules')) {
-        content.innerHTML = '<div class="error-message">Accès refusé - Réservé aux administrateurs</div>';
-        return;
-    }
-    content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
+async function acceptInvitation(invId) {
     try {
-        const rules = await apiCall('/badgeRule/getAll');
-        content.innerHTML = `
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Règles d'attribution des badges</h3>
-                    <button class="btn btn-primary" onclick="showCreateBadgeRuleModal()">+ Nouvelle règle</button>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>Badge</th><th>Condition</th><th>Champ</th><th>Opérateur</th><th>Valeur</th><th>Statut</th><th>Actions</th></tr></thead>
-                        <tbody>
-                            ${rules.map(r => `
-                                <tr>
-                                    <td><strong>${r.badgeName}</strong></td>
-                                    <td>${r.conditionType}</td>
-                                    <td>${r.conditionField}</td>
-                                    <td>${r.operator}</td>
-                                    <td>${r.value}</td>
-                                    <td><span class="badge ${r.isActive ? 'badge-success' : 'badge-secondary'}">${r.isActive ? 'Active' : 'Inactive'}</span></td>
-                                    <td>
-                                        <div class="btn-group">
-                                            <button class="btn btn-sm btn-info" onclick="editBadgeRule('${r._id}')">Modifier</button>
-                                            <button class="btn btn-sm btn-secondary" onclick="toggleBadgeRule('${r._id}')">${r.isActive ? 'Désactiver' : 'Activer'}</button>
-                                            <button class="btn btn-sm btn-danger" onclick="deleteBadgeRule('${r._id}')">Supprimer</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    } catch (error) {
-        content.innerHTML = `<div class="error-message">${error.message}</div>`;
-    }
+        await apiCall(`/social/invitation/${invId}/accept`, 'PUT');
+        showSuccess('Invitation acceptée !');
+        renderSocialPage();
+    } catch (error) { alert(error.message); }
 }
 
-async function showCreateBadgeRuleModal() {
-    const badges = await apiCall('/badge/getAll');
-    showModal('Créer une règle de badge', `
-        <form id="create-badge-rule-form">
-            <div class="form-group"><label>Badge</label><select name="badgeName" required>${badges.map(b => `<option value="${b.name}">${b.name}</option>`).join('')}</select></div>
-            <div class="form-group"><label>Type de condition</label><select name="conditionType" required><option value="totalPoints">Points totaux</option><option value="completedTrainings">Entraînements complétés</option><option value="custom">Personnalisé</option></select></div>
-            <div class="form-group"><label>Champ à évaluer</label><input type="text" name="conditionField" required placeholder="totalPoints ou completedTrainings"></div>
-            <div class="form-group"><label>Opérateur</label><select name="operator" required><option value=">=">>=</option><option value=">">&gt;</option><option value="=">=</option><option value="<">&lt;</option><option value="<="><=</option></select></div>
-            <div class="form-group"><label>Valeur seuil</label><input type="number" name="value" required min="0"></div>
+async function declineInvitation(invId) {
+    if (!confirm('Refuser cette invitation ?')) return;
+    try {
+        await apiCall(`/social/invitation/${invId}/decline`, 'PUT');
+        renderSocialPage();
+    } catch (error) { alert(error.message); }
+}
+
+async function shareChallenge(challengeId) {
+    let usersHtml = '';
+    if (isAdmin()) {
+        const users = await apiCall('/user').catch(() => []);
+        usersHtml = `<select name="userId" required>
+            <option value="">Sélectionner un utilisateur</option>
+            ${users.filter(u => u._id !== currentUser.id).map(u => `<option value="${u._id}">${u.firstname} ${u.lastname} (${u.email})</option>`).join('')}
+        </select>`;
+    } else {
+        usersHtml = `<input type="text" name="userId" required placeholder="ID de l'utilisateur">`;
+    }
+
+    showModal('Partager ce défi', `
+        <form id="share-form">
+            <div class="form-group">
+                <label>Destinataire</label>
+                ${usersHtml}
+            </div>
+            <div class="form-group">
+                <label>Message (optionnel)</label>
+                <textarea name="message" placeholder="Ajoute un message personnel..."></textarea>
+            </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-                <button type="submit" class="btn btn-primary">Créer</button>
+                <button type="submit" class="btn btn-primary">Partager</button>
             </div>
         </form>
     `);
-    document.getElementById('create-badge-rule-form').addEventListener('submit', async (e) => {
+
+    document.getElementById('share-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
-        data.value = parseInt(data.value);
         try {
-            await apiCall('/badgeRule/create', 'POST', data);
+            await apiCall(`/challenge/${challengeId}/share`, 'POST', data);
             closeModal();
-            renderBadgeRulesPage();
-            showSuccess('Règle créée');
+            showSuccess('Défi partagé !');
         } catch (error) { alert(error.message); }
     });
 }
 
-async function toggleBadgeRule(id) {
+async function joinChallenge(id) {
     try {
-        await apiCall(`/badgeRule/toggle/${id}`, 'PATCH');
-        renderBadgeRulesPage();
-        showSuccess('Règle mise à jour');
+        await apiCall(`/challenge/${id}/join`, 'POST');
+        showSuccess('Vous avez rejoint le défi !');
+        renderChallengesPage();
     } catch (error) { alert(error.message); }
 }
 
-async function deleteBadgeRule(id) {
-    if (!confirm('Supprimer cette règle ?')) return;
+async function completeChallenge(id) {
     try {
-        await apiCall(`/badgeRule/delete/${id}`, 'DELETE');
-        renderBadgeRulesPage();
-        showSuccess('Règle supprimée');
+        const result = await apiCall(`/challenge/${id}/complete`, 'POST');
+        showSuccess(`Défi complété ! +${result.pointsEarned || 0} points`);
+        renderChallengesPage();
     } catch (error) { alert(error.message); }
 }
 
@@ -938,53 +1226,52 @@ async function renderTrainingsPage() {
     content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-        if (isAdmin()) {
-            const users = await apiCall('/user/getAll');
-            content.innerHTML = `
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Entraînements</h3>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <select id="user-selector" onchange="loadUserTrainings(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                                ${users.map(u => `<option value="${u._id}" ${u._id === currentUser.id ? 'selected' : ''}>${u.firstname} ${u.lastname}</option>`).join('')}
-                            </select>
-                            <button class="btn btn-primary" onclick="showCreateTrainingModal()">+ Nouvel entraînement</button>
-                        </div>
-                    </div>
-                    <div id="trainings-table-container"><div class="loading"><div class="spinner"></div></div></div>
+        const trainings = await apiCall(`/training/user/${currentUser.id}`);
+        
+        content.innerHTML = `
+            <div class="page-header">
+                <h2>Mes entraînements</h2>
+                <button class="btn btn-primary" onclick="showCreateTrainingModal()">+ Nouvel entraînement</button>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total</div>
+                    <div class="stat-value">${trainings.length}</div>
                 </div>
-            `;
-            loadUserTrainings(users[0]?._id || currentUser.id);
-        } else {
-            const trainings = await apiCall(`/trainingStat/user/${currentUser.id}`);
-            renderTrainingsTable(trainings);
-        }
-    } catch (error) {
-        content.innerHTML = `<div class="error-message">${error.message}</div>`;
-    }
-}
+                <div class="stat-card success">
+                    <div class="stat-label">Ce mois</div>
+                    <div class="stat-value">${trainings.filter(t => new Date(t.date) > new Date(Date.now() - 30*24*60*60*1000)).length}</div>
+                </div>
+            </div>
 
-async function loadUserTrainings(userId) {
-    const container = document.getElementById('trainings-table-container');
-    if (!container) return;
-    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    window.selectedUserId = userId;
-    
-    try {
-        const trainings = await apiCall(`/trainingStat/user/${userId}`);
-        container.innerHTML = `
-            <div class="table-container">
-                <table>
-                    <thead><tr><th>Date</th><th>Défi</th><th>Durée</th><th>Calories</th><th>Complété</th><th>Actions</th></tr></thead>
+            <div class="card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Exercice</th>
+                            <th>Durée</th>
+                            <th>Répétitions</th>
+                            <th>Poids</th>
+                            <th>Calories</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        ${trainings.length === 0 ? '<tr><td colspan="6" style="text-align:center;padding:40px;">Aucun entraînement</td></tr>' : trainings.map(t => `
+                        ${trainings.length === 0 ? '<tr><td colspan="7" class="text-center">Aucun entraînement enregistré</td></tr>' :
+                        trainings.map(t => `
                             <tr>
-                                <td>${new Date(t.sessionDate).toLocaleDateString('fr-FR')}</td>
-                                <td>${t.challenge?.title || '-'}</td>
-                                <td>${t.duration} min</td>
-                                <td>${t.caloriesBurned}</td>
-                                <td><span class="badge ${t.completed ? 'badge-success' : 'badge-warning'}">${t.completed ? 'Oui' : 'Non'}</span></td>
-                                <td><button class="btn btn-sm btn-danger" onclick="deleteTraining('${t._id}')">Supprimer</button></td>
+                                <td>${new Date(t.date).toLocaleDateString('fr-FR')}</td>
+                                <td>${t.exerciseType?.name || 'N/A'}</td>
+                                <td>${t.duration || '-'} min</td>
+                                <td>${t.repetitions || '-'}</td>
+                                <td>${t.weight ? t.weight + ' kg' : '-'}</td>
+                                <td>${t.caloriesBurned || '-'}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-secondary" onclick="editTraining('${t._id}')">✏️</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteTraining('${t._id}')">🗑️</button>
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -992,73 +1279,83 @@ async function loadUserTrainings(userId) {
             </div>
         `;
     } catch (error) {
-        container.innerHTML = `<div class="error-message">${error.message}</div>`;
+        content.innerHTML = `<div class="error-message">${error.message}</div>`;
     }
 }
 
-function renderTrainingsTable(trainings) {
-    const content = document.getElementById('content-area');
-    window.selectedUserId = currentUser.id;
-    content.innerHTML = `
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Mes Entraînements</h3>
-                <button class="btn btn-primary" onclick="showCreateTrainingModal()">+ Nouvel entraînement</button>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead><tr><th>Date</th><th>Défi</th><th>Durée</th><th>Calories</th><th>Complété</th><th>Actions</th></tr></thead>
-                    <tbody>
-                        ${trainings.length === 0 ? '<tr><td colspan="6" style="text-align:center;padding:40px;">Aucun entraînement</td></tr>' : trainings.map(t => `
-                            <tr>
-                                <td>${new Date(t.sessionDate).toLocaleDateString('fr-FR')}</td>
-                                <td>${t.challenge?.title || '-'}</td>
-                                <td>${t.duration} min</td>
-                                <td>${t.caloriesBurned}</td>
-                                <td><span class="badge ${t.completed ? 'badge-success' : 'badge-warning'}">${t.completed ? 'Oui' : 'Non'}</span></td>
-                                <td><button class="btn btn-sm btn-danger" onclick="deleteTraining('${t._id}')">Supprimer</button></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-}
-
 async function showCreateTrainingModal() {
-    const challenges = await apiCall('/challenge/getAll');
-    const userId = window.selectedUserId || currentUser.id;
+    const exercises = cachedExerciseTypes.length ? cachedExerciseTypes : await apiCall('/exerciseType').catch(() => []);
+    cachedExerciseTypes = exercises;
 
-    showModal('Enregistrer un entraînement', `
+    showModal('Nouvel entraînement', `
         <form id="create-training-form">
-            <input type="hidden" name="user" value="${userId}">
-            <div class="form-group"><label>Défi</label><select name="challenge" required>${challenges.map(c => `<option value="${c._id}">${c.title}</option>`).join('')}</select></div>
-            <div class="form-group"><label>Date de la séance</label><input type="datetime-local" name="sessionDate" required></div>
-            <div class="form-group"><label>Durée (minutes)</label><input type="number" name="duration" required min="1"></div>
-            <div class="form-group"><label>Calories brûlées</label><input type="number" name="caloriesBurned" required min="0"></div>
-            <div class="form-group"><label>Notes</label><textarea name="notes"></textarea></div>
-            <div class="form-group"><label><input type="checkbox" name="completed" checked> Entraînement complété</label></div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <div class="form-group">
+                <label>Type d'exercice</label>
+                <select name="exerciseType" required>
+                    <option value="">Sélectionner</option>
+                    ${exercises.map(e => `<option value="${e._id}">${e.name}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Durée (minutes)</label>
+                <input type="number" name="duration" min="1" placeholder="30">
+            </div>
+            <div class="form-group">
+                <label>Répétitions</label>
+                <input type="number" name="repetitions" min="1" placeholder="10">
+            </div>
+            <div class="form-group">
+                <label>Poids (kg)</label>
+                <input type="number" name="weight" step="0.5" min="0" placeholder="0">
+            </div>
+            <div class="form-group">
+                <label>Calories brûlées</label>
+                <input type="number" name="caloriesBurned" min="0" placeholder="100">
+            </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea name="notes" placeholder="Notes personnelles..."></textarea>
+            </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
                 <button type="submit" class="btn btn-primary">Enregistrer</button>
             </div>
         </form>
     `);
-    document.querySelector('input[name="sessionDate"]').value = new Date().toISOString().slice(0, 16);
 
     document.getElementById('create-training-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData);
-        data.duration = parseInt(data.duration);
-        data.caloriesBurned = parseInt(data.caloriesBurned);
-        data.completed = formData.has('completed');
+        const data = {};
+        
+        // Construction propre des données - éviter les champs vides
+        data.date = formData.get('date');
+        data.exerciseType = formData.get('exerciseType');
+        
+        const duration = formData.get('duration');
+        if (duration && duration.trim() !== '') data.duration = parseInt(duration);
+        
+        const reps = formData.get('repetitions');
+        if (reps && reps.trim() !== '') data.repetitions = parseInt(reps);
+        
+        const weight = formData.get('weight');
+        if (weight && weight.trim() !== '') data.weight = parseFloat(weight);
+        
+        const calories = formData.get('caloriesBurned');
+        if (calories && calories.trim() !== '') data.caloriesBurned = parseInt(calories);
+        
+        const notes = formData.get('notes');
+        if (notes && notes.trim() !== '') data.notes = notes.trim();
+
         try {
-            await apiCall('/trainingStat/create', 'POST', data);
+            await apiCall('/training/create', 'POST', data);
             closeModal();
             renderTrainingsPage();
-            showSuccess('Entraînement enregistré');
+            showSuccess('Entraînement enregistré !');
         } catch (error) { alert(error.message); }
     });
 }
@@ -1066,9 +1363,445 @@ async function showCreateTrainingModal() {
 async function deleteTraining(id) {
     if (!confirm('Supprimer cet entraînement ?')) return;
     try {
-        await apiCall(`/trainingStat/${id}`, 'DELETE');
+        await apiCall(`/training/${id}`, 'DELETE');
         renderTrainingsPage();
         showSuccess('Entraînement supprimé');
+    } catch (error) { alert(error.message); }
+}
+
+async function editTraining(id) {
+    try {
+        const training = await apiCall(`/training/${id}`);
+        const exercises = cachedExerciseTypes.length ? cachedExerciseTypes : await apiCall('/exerciseType').catch(() => []);
+        
+        showModal('Modifier l\'entraînement', `
+            <form id="edit-training-form">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" name="date" required value="${training.date?.split('T')[0] || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Type d'exercice</label>
+                    <select name="exerciseType" required>
+                        ${exercises.map(e => `<option value="${e._id}" ${e._id === training.exerciseType?._id ? 'selected' : ''}>${e.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Durée (minutes)</label>
+                    <input type="number" name="duration" min="1" value="${training.duration || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Répétitions</label>
+                    <input type="number" name="repetitions" min="1" value="${training.repetitions || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Poids (kg)</label>
+                    <input type="number" name="weight" step="0.5" min="0" value="${training.weight || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Calories brûlées</label>
+                    <input type="number" name="caloriesBurned" min="0" value="${training.caloriesBurned || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea name="notes">${training.notes || ''}</textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Mettre à jour</button>
+                </div>
+            </form>
+        `);
+
+        document.getElementById('edit-training-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {};
+            
+            data.date = formData.get('date');
+            data.exerciseType = formData.get('exerciseType');
+            
+            const duration = formData.get('duration');
+            if (duration && duration.trim() !== '') data.duration = parseInt(duration);
+            
+            const reps = formData.get('repetitions');
+            if (reps && reps.trim() !== '') data.repetitions = parseInt(reps);
+            
+            const weight = formData.get('weight');
+            if (weight && weight.trim() !== '') data.weight = parseFloat(weight);
+            
+            const calories = formData.get('caloriesBurned');
+            if (calories && calories.trim() !== '') data.caloriesBurned = parseInt(calories);
+            
+            const notes = formData.get('notes');
+            if (notes && notes.trim() !== '') data.notes = notes.trim();
+
+            try {
+                await apiCall(`/training/${id}`, 'PUT', data);
+                closeModal();
+                renderTrainingsPage();
+                showSuccess('Entraînement mis à jour !');
+            } catch (error) { alert(error.message); }
+        });
+    } catch (error) { alert(error.message); }
+}
+
+// ========== PAGE BADGES ==========
+async function renderBadgesPage() {
+    const content = document.getElementById('content-area');
+    content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+        const [allBadges, userBadges] = await Promise.all([
+            apiCall('/badge'),
+            apiCall(`/badge/user/${currentUser.id}`).catch(() => [])
+        ]);
+
+        const earnedIds = new Set(userBadges.map(ub => ub.badge?._id || ub.badge));
+
+        content.innerHTML = `
+            <div class="page-header">
+                <h2>Badges</h2>
+                ${isAdmin() ? '<button class="btn btn-primary" onclick="showCreateBadgeModal()">+ Créer un badge</button>' : ''}
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card success">
+                    <div class="stat-label">Badges obtenus</div>
+                    <div class="stat-value">${userBadges.length}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total disponible</div>
+                    <div class="stat-value">${allBadges.length}</div>
+                </div>
+            </div>
+
+            <h3>Vos badges</h3>
+            <div class="badges-grid">
+                ${userBadges.length === 0 ? '<p>Vous n\'avez pas encore de badges</p>' :
+                userBadges.map(ub => {
+                    const badge = ub.badge || ub;
+                    return `
+                    <div class="badge-card earned rarity-${badge.rarity || 'common'}">
+                        <div class="badge-icon">${badge.icon || '🏅'}</div>
+                        <div class="badge-name">${badge.name}</div>
+                        <div class="badge-desc">${badge.description || ''}</div>
+                        <div class="badge-rarity">${badge.rarity || 'common'}</div>
+                        <div class="badge-date">Obtenu le ${new Date(ub.earnedAt || ub.created_at).toLocaleDateString('fr-FR')}</div>
+                    </div>
+                `}).join('')}
+            </div>
+
+            <h3>Tous les badges</h3>
+            <div class="badges-grid">
+                ${allBadges.map(badge => `
+                    <div class="badge-card ${earnedIds.has(badge._id) ? 'earned' : 'locked'} rarity-${badge.rarity || 'common'}">
+                        <div class="badge-icon">${badge.icon || '🏅'}</div>
+                        <div class="badge-name">${badge.name}</div>
+                        <div class="badge-desc">${badge.description || ''}</div>
+                        <div class="badge-rarity">${badge.rarity || 'common'}</div>
+                        ${!earnedIds.has(badge._id) ? '<div class="badge-locked">🔒 Non obtenu</div>' : ''}
+                        ${isAdmin() ? `
+                            <div class="badge-actions">
+                                <button class="btn btn-sm btn-secondary" onclick="editBadge('${badge._id}')">✏️</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteBadge('${badge._id}')">🗑️</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (error) {
+        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+    }
+}
+
+async function showCreateBadgeModal() {
+    showModal('Créer un badge', `
+        <form id="create-badge-form">
+            <div class="form-group">
+                <label>Nom</label>
+                <input type="text" name="name" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" required></textarea>
+            </div>
+            <div class="form-group">
+                <label>Icône (emoji)</label>
+                <input type="text" name="icon" value="🏅" maxlength="4">
+            </div>
+            <div class="form-group">
+                <label>Rareté</label>
+                <select name="rarity" required>
+                    <option value="common">Commun</option>
+                    <option value="rare">Rare</option>
+                    <option value="epic">Épique</option>
+                    <option value="legendary">Légendaire</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Points bonus</label>
+                <input type="number" name="pointsBonus" value="10" min="0">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+                <button type="submit" class="btn btn-primary">Créer</button>
+            </div>
+        </form>
+    `);
+
+    document.getElementById('create-badge-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        data.pointsBonus = parseInt(data.pointsBonus) || 0;
+        try {
+            await apiCall('/badge/create', 'POST', data);
+            closeModal();
+            renderBadgesPage();
+            showSuccess('Badge créé !');
+        } catch (error) { alert(error.message); }
+    });
+}
+
+async function deleteBadge(id) {
+    if (!confirm('Supprimer ce badge ?')) return;
+    try {
+        await apiCall(`/badge/${id}`, 'DELETE');
+        renderBadgesPage();
+        showSuccess('Badge supprimé');
+    } catch (error) { alert(error.message); }
+}
+
+// ========== PAGE RÈGLES DE BADGES ==========
+async function renderBadgeRulesPage() {
+    if (!hasPermission('canManageBadgeRules')) {
+        document.getElementById('content-area').innerHTML = '<div class="error-message">Accès non autorisé</div>';
+        return;
+    }
+
+    const content = document.getElementById('content-area');
+    content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+        const [rules, badges] = await Promise.all([
+            apiCall('/badgeRule'),
+            apiCall('/badge')
+        ]);
+
+        content.innerHTML = `
+            <div class="page-header">
+                <h2>Règles d'attribution des badges</h2>
+                <button class="btn btn-primary" onclick="showCreateBadgeRuleModal()">+ Nouvelle règle</button>
+            </div>
+
+            <div class="card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Badge</th>
+                            <th>Type de condition</th>
+                            <th>Valeur requise</th>
+                            <th>Actif</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rules.length === 0 ? '<tr><td colspan="5" class="text-center">Aucune règle</td></tr>' :
+                        rules.map(rule => `
+                            <tr>
+                                <td>${rule.badge?.name || 'N/A'} ${rule.badge?.icon || ''}</td>
+                                <td>${rule.conditionType}</td>
+                                <td>${rule.conditionValue}</td>
+                                <td><span class="badge ${rule.isActive ? 'badge-success' : 'badge-danger'}">${rule.isActive ? 'Oui' : 'Non'}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-secondary" onclick="editBadgeRule('${rule._id}')">✏️</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteBadgeRule('${rule._id}')">🗑️</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        window.cachedBadges = badges;
+    } catch (error) {
+        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+    }
+}
+
+async function showCreateBadgeRuleModal() {
+    const badges = window.cachedBadges || await apiCall('/badge').catch(() => []);
+
+    showModal('Nouvelle règle de badge', `
+        <form id="create-rule-form">
+            <div class="form-group">
+                <label>Badge à attribuer</label>
+                <select name="badge" required>
+                    <option value="">Sélectionner</option>
+                    ${badges.map(b => `<option value="${b._id}">${b.icon || ''} ${b.name}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Type de condition</label>
+                <select name="conditionType" required>
+                    <option value="trainings_count">Nombre d'entraînements</option>
+                    <option value="challenges_completed">Défis complétés</option>
+                    <option value="total_duration">Durée totale (minutes)</option>
+                    <option value="calories_burned">Calories brûlées</option>
+                    <option value="streak_days">Jours consécutifs</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Valeur requise</label>
+                <input type="number" name="conditionValue" required min="1">
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="isActive" checked> Règle active</label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+                <button type="submit" class="btn btn-primary">Créer</button>
+            </div>
+        </form>
+    `);
+
+    document.getElementById('create-rule-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = {
+            badge: formData.get('badge'),
+            conditionType: formData.get('conditionType'),
+            conditionValue: parseInt(formData.get('conditionValue')),
+            isActive: formData.has('isActive')
+        };
+        try {
+            await apiCall('/badgeRule/create', 'POST', data);
+            closeModal();
+            renderBadgeRulesPage();
+            showSuccess('Règle créée !');
+        } catch (error) { alert(error.message); }
+    });
+}
+
+async function deleteBadgeRule(id) {
+    if (!confirm('Supprimer cette règle ?')) return;
+    try {
+        await apiCall(`/badgeRule/${id}`, 'DELETE');
+        renderBadgeRulesPage();
+        showSuccess('Règle supprimée');
+    } catch (error) { alert(error.message); }
+}
+
+// ========== PAGE RÉCOMPENSES ==========
+async function renderRewardsPage() {
+    const content = document.getElementById('content-area');
+    content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+        const [rewards, userRewards] = await Promise.all([
+            apiCall('/reward'),
+            apiCall(`/reward/user/${currentUser.id}`).catch(() => [])
+        ]);
+
+        const claimedIds = new Set(userRewards.map(ur => ur.reward?._id || ur.reward));
+
+        content.innerHTML = `
+            <div class="page-header">
+                <h2>Récompenses</h2>
+                ${isAdmin() ? '<button class="btn btn-primary" onclick="showCreateRewardModal()">+ Créer une récompense</button>' : ''}
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card success">
+                    <div class="stat-label">Réclamées</div>
+                    <div class="stat-value">${userRewards.length}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Disponibles</div>
+                    <div class="stat-value">${rewards.length}</div>
+                </div>
+            </div>
+
+            <div class="rewards-grid">
+                ${rewards.map(reward => `
+                    <div class="reward-card ${claimedIds.has(reward._id) ? 'claimed' : ''}">
+                        <div class="reward-icon">${reward.icon || '🎁'}</div>
+                        <div class="reward-name">${reward.name}</div>
+                        <div class="reward-desc">${reward.description || ''}</div>
+                        <div class="reward-cost">${reward.pointsCost || 0} points</div>
+                        ${claimedIds.has(reward._id) ? 
+                            '<span class="badge badge-success">Réclamée</span>' :
+                            `<button class="btn btn-primary btn-sm" onclick="claimReward('${reward._id}')">Réclamer</button>`
+                        }
+                        ${isAdmin() ? `
+                            <div class="reward-actions">
+                                <button class="btn btn-sm btn-danger" onclick="deleteReward('${reward._id}')">🗑️</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (error) {
+        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+    }
+}
+
+async function claimReward(id) {
+    try {
+        await apiCall(`/reward/${id}/claim`, 'POST');
+        showSuccess('Récompense réclamée !');
+        renderRewardsPage();
+    } catch (error) { alert(error.message); }
+}
+
+async function showCreateRewardModal() {
+    showModal('Créer une récompense', `
+        <form id="create-reward-form">
+            <div class="form-group">
+                <label>Nom</label>
+                <input type="text" name="name" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" required></textarea>
+            </div>
+            <div class="form-group">
+                <label>Icône (emoji)</label>
+                <input type="text" name="icon" value="🎁" maxlength="4">
+            </div>
+            <div class="form-group">
+                <label>Coût en points</label>
+                <input type="number" name="pointsCost" required min="0" value="100">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+                <button type="submit" class="btn btn-primary">Créer</button>
+            </div>
+        </form>
+    `);
+
+    document.getElementById('create-reward-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        data.pointsCost = parseInt(data.pointsCost);
+        try {
+            await apiCall('/reward/create', 'POST', data);
+            closeModal();
+            renderRewardsPage();
+            showSuccess('Récompense créée !');
+        } catch (error) { alert(error.message); }
+    });
+}
+
+async function deleteReward(id) {
+    if (!confirm('Supprimer cette récompense ?')) return;
+    try {
+        await apiCall(`/reward/${id}`, 'DELETE');
+        renderRewardsPage();
+        showSuccess('Récompense supprimée');
     } catch (error) { alert(error.message); }
 }
 
@@ -1079,36 +1812,58 @@ async function renderScoresPage() {
 
     try {
         const leaderboard = await apiCall('/score/leaderboard');
-        let myScore = null;
-        try { myScore = await apiCall(`/score/user/${currentUser.id}`); } catch (e) {}
-        
+        const userScore = await apiCall(`/score/user/${currentUser.id}`).catch(() => null);
+
         content.innerHTML = `
-            ${myScore ? `
-                <div class="card" style="background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; margin-bottom: 20px;">
-                    <h3 style="margin-bottom: 10px;">Mon Score</h3>
-                    <div style="display: flex; gap: 30px;">
-                        <div><div style="font-size: 32px; font-weight: bold;">${myScore.totalPoints}</div><div style="opacity: 0.9;">Points totaux</div></div>
-                        <div><div style="font-size: 32px; font-weight: bold;">${myScore.challengesCompleted}</div><div style="opacity: 0.9;">Défis complétés</div></div>
+            <div class="page-header">
+                <h2>Classement</h2>
+            </div>
+
+            ${userScore ? `
+                <div class="card user-score-card">
+                    <h3>Votre score</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Points totaux</div>
+                            <div class="stat-value">${userScore.totalPoints || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Défis complétés</div>
+                            <div class="stat-value">${userScore.challengesCompleted || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Entraînements</div>
+                            <div class="stat-value">${userScore.trainingsCount || 0}</div>
+                        </div>
                     </div>
                 </div>
             ` : ''}
+
             <div class="card">
-                <div class="card-header"><h3 class="card-title">🏆 Top 10 Classement</h3></div>
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>Rang</th><th>Utilisateur</th><th>Points</th><th>Défis</th></tr></thead>
-                        <tbody>
-                            ${leaderboard.length === 0 ? '<tr><td colspan="4" style="text-align:center;padding:40px;">Aucun score</td></tr>' : leaderboard.map((s, i) => `
-                                <tr ${s.user?._id === currentUser.id ? 'style="background:#f0f9ff;"' : ''}>
-                                    <td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</td>
-                                    <td><strong>${s.user?.firstname || ''} ${s.user?.lastname || ''}</strong></td>
-                                    <td><span class="badge badge-primary">${s.totalPoints} pts</span></td>
-                                    <td>${s.challengesCompleted}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
+                <h3>Top joueurs</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Joueur</th>
+                            <th>Points</th>
+                            <th>Défis</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${leaderboard.length === 0 ? '<tr><td colspan="4" class="text-center">Aucun classement disponible</td></tr>' :
+                        leaderboard.map((entry, index) => `
+                            <tr class="${entry.user?._id === currentUser.id ? 'highlight' : ''}">
+                                <td>
+                                    ${index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                                </td>
+                                <td>${entry.user?.firstname || ''} ${entry.user?.lastname || ''}</td>
+                                <td><strong>${entry.totalPoints || 0}</strong></td>
+                                <td>${entry.challengesCompleted || 0}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             </div>
         `;
     } catch (error) {
@@ -1116,272 +1871,65 @@ async function renderScoresPage() {
     }
 }
 
-// ========== MODAL SYSTEM ==========
-let currentModal = null;
-
+// ========== UTILITAIRES MODAUX ==========
 function showModal(title, content) {
-    closeModal();
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) existingModal.remove();
+
     const modal = document.createElement('div');
-    modal.className = 'modal active';
+    modal.className = 'modal-overlay';
     modal.innerHTML = `
-        <div class="modal-content">
+        <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">${title}</h3>
-                <button class="modal-close" onclick="closeModal()">×</button>
+                <h3>${title}</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
-            <div class="modal-body">${content}</div>
+            <div class="modal-content">
+                ${content}
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
-    currentModal = modal;
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
 }
 
 function closeModal() {
-    if (currentModal) { currentModal.remove(); currentModal = null; }
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) modal.remove();
 }
 
-// ========== NOTIFICATIONS ==========
 function showSuccess(message) {
-    const n = document.createElement('div');
-    n.className = 'success-message';
-    n.textContent = message;
-    n.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;';
-    document.body.appendChild(n);
-    setTimeout(() => n.remove(), 3000);
+    showToast(message, 'success');
 }
 
 function showError(message) {
-    const n = document.createElement('div');
-    n.className = 'error-message';
-    n.textContent = message;
-    n.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;';
-    document.body.appendChild(n);
-    setTimeout(() => n.remove(), 3000);
+    showToast(message, 'error');
 }
 
-// ========== FONCTIONS D'ÉDITION ==========
-async function editUser(id) {
-    if (!isAdmin()) return showError('Réservé aux administrateurs');
-    try {
-        const user = await apiCall(`/user/get/${id}`);
-        showModal('Modifier l\'utilisateur', `
-            <form id="edit-user-form">
-                <div class="form-group"><label>Prénom</label><input type="text" name="firstname" value="${user.firstname}" required></div>
-                <div class="form-group"><label>Nom</label><input type="text" name="lastname" value="${user.lastname}" required></div>
-                <div class="form-group"><label>Email</label><input type="email" name="email" value="${user.email}" required></div>
-                <div class="form-group"><label>Mot de passe (laisser vide)</label><input type="password" name="password" minlength="8"></div>
-                <div class="form-group"><label>Rôle</label><select name="role" required><option value="member" ${user.role === 'member' ? 'selected' : ''}>Member</option><option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Manager</option><option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option></select></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button><button type="submit" class="btn btn-primary">Modifier</button></div>
-            </form>
-        `);
-        document.getElementById('edit-user-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            if (!data.password) delete data.password;
-            try { await apiCall(`/user/update/${id}`, 'PATCH', data); closeModal(); renderUsersPage(); showSuccess('Utilisateur modifié'); } catch (error) { alert(error.message); }
-        });
-    } catch (error) { alert(error.message); }
+function showToast(message, type = 'info') {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
-async function editGym(id) {
-    try {
-        const gym = await apiCall(`/gym/${id}`);
-        showModal('Modifier la salle', `
-            <form id="edit-gym-form">
-                <div class="form-group"><label>Nom</label><input type="text" name="name" value="${gym.name}" required></div>
-                <div class="form-group"><label>Adresse</label><input type="text" name="address" value="${gym.address}" required></div>
-                <div class="form-group"><label>Capacité</label><input type="number" name="capacity" value="${gym.capacity}" required min="1"></div>
-                <div class="form-group"><label>Description</label><textarea name="description">${gym.description || ''}</textarea></div>
-                <div class="form-group"><label>Téléphone</label><input type="tel" name="phone" value="${gym.phone || ''}"></div>
-                <div class="form-group"><label>Email</label><input type="email" name="email" value="${gym.email || ''}"></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button><button type="submit" class="btn btn-primary">Modifier</button></div>
-            </form>
-        `);
-        document.getElementById('edit-gym-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            data.capacity = parseInt(data.capacity);
-            try { await apiCall(`/gym/${id}`, 'PATCH', data); closeModal(); renderGymsPage(); showSuccess('Salle modifiée'); } catch (error) { alert(error.message); }
-        });
-    } catch (error) { alert(error.message); }
-}
-
-async function editExercise(id) {
-    if (!hasPermission('canCreateExercise')) return showError('Réservé aux administrateurs');
-    try {
-        const ex = await apiCall(`/exerciseType/${id}`);
-        showModal('Modifier l\'exercice', `
-            <form id="edit-exercise-form">
-                <div class="form-group"><label>Nom</label><input type="text" name="name" value="${ex.name}" required></div>
-                <div class="form-group"><label>Description</label><textarea name="description" required>${ex.description}</textarea></div>
-                <div class="form-group"><label>Muscles ciblés</label><input type="text" name="targetedMuscles" value="${ex.targetedMuscles?.join(', ') || ''}" required></div>
-                <div class="form-group"><label>Difficulté</label><select name="difficulty" required><option value="beginner" ${ex.difficulty === 'beginner' ? 'selected' : ''}>Débutant</option><option value="intermediate" ${ex.difficulty === 'intermediate' ? 'selected' : ''}>Intermédiaire</option><option value="advanced" ${ex.difficulty === 'advanced' ? 'selected' : ''}>Avancé</option></select></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button><button type="submit" class="btn btn-primary">Modifier</button></div>
-            </form>
-        `);
-        document.getElementById('edit-exercise-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            data.targetedMuscles = data.targetedMuscles.split(',').map(s => s.trim());
-            try { await apiCall(`/exerciseType/update/${id}`, 'PATCH', data); closeModal(); renderExercisesPage(); showSuccess('Exercice modifié'); } catch (error) { alert(error.message); }
-        });
-    } catch (error) { alert(error.message); }
-}
-
-async function editChallenge(id) {
-    try {
-        const ch = await apiCall(`/challenge/${id}`);
-        const gyms = await apiCall('/gym/approved');
-        const exercises = await apiCall('/exerciseType/getAll');
-        showModal('Modifier le défi', `
-            <form id="edit-challenge-form">
-                <div class="form-group"><label>Titre</label><input type="text" name="title" value="${ch.title}" required></div>
-                <div class="form-group"><label>Description</label><textarea name="description" required>${ch.description}</textarea></div>
-                <div class="form-group"><label>Salle</label><select name="gym"><option value="">Aucune</option>${gyms.map(g => `<option value="${g._id}" ${ch.gym?._id === g._id ? 'selected' : ''}>${g.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label>Type d'exercice</label><select name="exerciseType" required>${exercises.map(e => `<option value="${e._id}" ${ch.exerciseType?._id === e._id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label>Difficulté</label><select name="difficulty" required><option value="beginner" ${ch.difficulty === 'beginner' ? 'selected' : ''}>Débutant</option><option value="intermediate" ${ch.difficulty === 'intermediate' ? 'selected' : ''}>Intermédiaire</option><option value="advanced" ${ch.difficulty === 'advanced' ? 'selected' : ''}>Avancé</option></select></div>
-                <div class="form-group"><label>Durée (jours)</label><input type="number" name="duration" value="${ch.duration}" required min="1"></div>
-                <div class="form-group"><label>Objectifs</label><textarea name="objectives" required>${ch.objectives}</textarea></div>
-                <div class="form-group"><label>Max participants</label><input type="number" name="maxParticipants" value="${ch.maxParticipants || ''}" min="1"></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button><button type="submit" class="btn btn-primary">Modifier</button></div>
-            </form>
-        `);
-        document.getElementById('edit-challenge-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            data.duration = parseInt(data.duration);
-            if (data.maxParticipants) data.maxParticipants = parseInt(data.maxParticipants); else delete data.maxParticipants;
-            if (!data.gym) delete data.gym;
-            try { await apiCall(`/challenge/update/${id}`, 'PATCH', data); closeModal(); renderChallengesPage(); showSuccess('Défi modifié'); } catch (error) { alert(error.message); }
-        });
-    } catch (error) { alert(error.message); }
-}
-
-async function editBadge(id) {
-    if (!hasPermission('canCreateBadge')) return showError('Réservé aux administrateurs');
-    try {
-        const badge = await apiCall(`/badge/get/${id}`);
-        showModal('Modifier le badge', `
-            <form id="edit-badge-form">
-                <div class="form-group"><label>Nom</label><input type="text" name="name" value="${badge.name}" required></div>
-                <div class="form-group"><label>Description</label><textarea name="description" required>${badge.description}</textarea></div>
-                <div class="form-group"><label>Icône</label><input type="url" name="iconUrl" value="${badge.iconUrl}" required></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button><button type="submit" class="btn btn-primary">Modifier</button></div>
-            </form>
-        `);
-        document.getElementById('edit-badge-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try { await apiCall(`/badge/update/${id}`, 'PATCH', Object.fromEntries(new FormData(e.target))); closeModal(); renderBadgesPage(); showSuccess('Badge modifié'); } catch (error) { alert(error.message); }
-        });
-    } catch (error) { alert(error.message); }
-}
-
-async function editBadgeRule(id) {
-    if (!hasPermission('canManageBadgeRules')) return showError('Réservé aux administrateurs');
-    try {
-        const rule = await apiCall(`/badgeRule/get/${id}`);
-        const badges = await apiCall('/badge/getAll');
-        showModal('Modifier la règle', `
-            <form id="edit-rule-form">
-                <div class="form-group"><label>Badge</label><select name="badgeName" required>${badges.map(b => `<option value="${b.name}" ${rule.badgeName === b.name ? 'selected' : ''}>${b.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label>Type de condition</label><select name="conditionType" required><option value="totalPoints" ${rule.conditionType === 'totalPoints' ? 'selected' : ''}>Points totaux</option><option value="completedTrainings" ${rule.conditionType === 'completedTrainings' ? 'selected' : ''}>Entraînements complétés</option><option value="custom" ${rule.conditionType === 'custom' ? 'selected' : ''}>Personnalisé</option></select></div>
-                <div class="form-group"><label>Champ à évaluer</label><input type="text" name="conditionField" value="${rule.conditionField}" required></div>
-                <div class="form-group"><label>Opérateur</label><select name="operator" required><option value=">=" ${rule.operator === '>=' ? 'selected' : ''}>>=</option><option value=">" ${rule.operator === '>' ? 'selected' : ''}>&gt;</option><option value="=" ${rule.operator === '=' ? 'selected' : ''}>=</option><option value="<" ${rule.operator === '<' ? 'selected' : ''}>&lt;</option><option value="<=" ${rule.operator === '<=' ? 'selected' : ''}><=</option></select></div>
-                <div class="form-group"><label>Valeur seuil</label><input type="number" name="value" value="${rule.value}" required min="0"></div>
-                <div class="form-group"><label>Statut</label><select name="isActive"><option value="true" ${rule.isActive ? 'selected' : ''}>Actif</option><option value="false" ${!rule.isActive ? 'selected' : ''}>Inactif</option></select></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button><button type="submit" class="btn btn-primary">Modifier</button></div>
-            </form>
-        `);
-        document.getElementById('edit-rule-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            data.isActive = data.isActive === 'true';
-            data.value = parseInt(data.value);
-            try { await apiCall(`/badgeRule/update/${id}`, 'PATCH', data); closeModal(); renderBadgeRulesPage(); showSuccess('Règle modifiée'); } catch (error) { alert(error.message); }
-        });
-    } catch (error) { alert(error.message); }
-}
-
-// ========== EXPOSER LES FONCTIONS GLOBALEMENT ==========
-// Fonctions d'authentification
-window.fillCredentials = fillCredentials;
-window.logout = logout;
-window.toggleAuthForm = toggleAuthForm;
-
-// Fonctions utilisateurs
-window.showCreateUserModal = showCreateUserModal;
-window.editUser = editUser;
-window.deleteUser = deleteUser;
-window.toggleUserActive = toggleUserActive;
-
-// Fonctions salles
-window.showCreateGymModal = showCreateGymModal;
-window.editGym = editGym;
-window.deleteGym = deleteGym;
-window.approveGym = approveGym;
-
-// Fonctions exercices
-window.showCreateExerciseModal = showCreateExerciseModal;
-window.editExercise = editExercise;
-window.deleteExercise = deleteExercise;
-
-// Fonctions défis
-window.showCreateChallengeModal = showCreateChallengeModal;
-window.editChallenge = editChallenge;
-window.deleteChallenge = deleteChallenge;
-window.joinChallenge = joinChallenge;
-window.filterChallenges = filterChallenges;
-
-// Fonctions badges
-window.showCreateBadgeModal = showCreateBadgeModal;
-window.editBadge = editBadge;
-window.deleteBadge = deleteBadge;
-
-// Fonctions règles badges
-window.showCreateBadgeRuleModal = showCreateBadgeRuleModal;
-window.editBadgeRule = editBadgeRule;
-window.deleteBadgeRule = deleteBadgeRule;
-window.toggleBadgeRule = toggleBadgeRule;
-
-// Fonctions entraînements
-window.showCreateTrainingModal = showCreateTrainingModal;
-window.deleteTraining = deleteTraining;
-window.loadUserTrainings = loadUserTrainings;
-
-// Fonctions modales
-window.showModal = showModal;
-window.closeModal = closeModal;
-
-// Fonctions de navigation
-window.loadPage = loadPage;
-
-// ========== INIT ==========
-if (authToken && currentUser.id) {
-    fetch(`${API_URL}/user/get/${currentUser.id}`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
-    .then(response => {
-        if (response.ok) return response.json();
-        throw new Error('Token invalide');
-    })
-    .then(userData => {
-        currentUser = { ...currentUser, role: userData.role, firstname: userData.firstname, lastname: userData.lastname };
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        
-        document.getElementById('auth-page').style.display = 'none';
-        document.getElementById('dashboard').style.display = 'flex';
-        document.getElementById('current-user-email').textContent = `${currentUser.firstname || ''} ${currentUser.lastname || ''} (${currentUser.role})`;
-        
+// ========== INITIALISATION ==========
+document.addEventListener('DOMContentLoaded', () => {
+    if (token && currentUser) {
         setupSidebarByRole();
-        const firstPage = ROLE_PERMISSIONS[currentUser.role]?.pages[0] || 'challenges';
-        loadPage(firstPage);
-    })
-    .catch(error => {
-        console.error('Session expirée:', error);
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentUser');
-        authToken = null;
-        currentUser = {};
-    });
-}
+        renderDashboard();
+    } else {
+        showLoginForm();
+    }
+});
