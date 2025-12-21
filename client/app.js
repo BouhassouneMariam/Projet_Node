@@ -245,7 +245,7 @@ function logout() {
     window.location.reload();
 }
 
-async function apiCall(endpoint, method = 'GET', body = null) {
+async function apiCall(endpoint, method = 'GET', body = null, returnEmptyOnError = false) {
     const options = {
         method,
         headers: {
@@ -255,30 +255,43 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     };
     if (body) options.body = JSON.stringify(body);
 
-    const response = await fetch(`${API_URL}${endpoint}`, options);
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, options);
 
-    if (response.status === 204) return null;
-
-    if (!response.ok) {
-        const contentType = response.headers.get('content-type') || '';
-        let msg = 'Une erreur est survenue';
-
-        if (contentType.includes('application/json')) {
-            const err = await response.json().catch(() => ({}));
-            msg = err.error || err.message || msg;
-        } else {
-            msg = await response.text().catch(() => msg);
+        if (response.status === 204) return null;
+        
+        // Si 404 et qu'on demande un retour vide, retourner un tableau vide
+        if (response.status === 404 && returnEmptyOnError) {
+            return [];
         }
 
-        throw new Error(msg);
-    }
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            let msg = 'Une erreur est survenue';
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-        return response.json();
-    } else {
-        const text = await response.text();
-        return { message: text };
+            if (contentType.includes('application/json')) {
+                const err = await response.json().catch(() => ({}));
+                msg = err.error || err.message || msg;
+            } else {
+                msg = await response.text().catch(() => msg);
+            }
+
+            throw new Error(msg);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            const text = await response.text();
+            return { message: text };
+        }
+    } catch (error) {
+        if (returnEmptyOnError) {
+            console.warn(`API call to ${endpoint} failed:`, error.message);
+            return [];
+        }
+        throw error;
     }
 }
 
@@ -1226,7 +1239,7 @@ async function renderTrainingsPage() {
     content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-        const trainings = await apiCall(`/training/user/${currentUser.id}`);
+        const trainings = await apiCall(`/training/user/${currentUser.id}`, 'GET', null, true) || [];
         
         content.innerHTML = `
             <div class="page-header">
@@ -1279,13 +1292,18 @@ async function renderTrainingsPage() {
             </div>
         `;
     } catch (error) {
-        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+        content.innerHTML = `<div class="error-message">Impossible de charger les entraînements: ${error.message}</div>`;
     }
 }
 
 async function showCreateTrainingModal() {
-    const exercises = cachedExerciseTypes.length ? cachedExerciseTypes : await apiCall('/exerciseType').catch(() => []);
+    const exercises = cachedExerciseTypes.length ? cachedExerciseTypes : await apiCall('/exerciseType', 'GET', null, true) || [];
     cachedExerciseTypes = exercises;
+    
+    if (exercises.length === 0) {
+        showError('Aucun type d\'exercice disponible. Un administrateur doit d\'abord en créer.');
+        return;
+    }
 
     showModal('Nouvel entraînement', `
         <form id="create-training-form">
@@ -1453,11 +1471,11 @@ async function renderBadgesPage() {
 
     try {
         const [allBadges, userBadges] = await Promise.all([
-            apiCall('/badge'),
-            apiCall(`/badge/user/${currentUser.id}`).catch(() => [])
+            apiCall('/badge', 'GET', null, true),
+            apiCall(`/badge/user/${currentUser.id}`, 'GET', null, true)
         ]);
 
-        const earnedIds = new Set(userBadges.map(ub => ub.badge?._id || ub.badge));
+        const earnedIds = new Set((userBadges || []).map(ub => ub.badge?._id || ub.badge));
 
         content.innerHTML = `
             <div class="page-header">
@@ -1468,18 +1486,18 @@ async function renderBadgesPage() {
             <div class="stats-grid">
                 <div class="stat-card success">
                     <div class="stat-label">Badges obtenus</div>
-                    <div class="stat-value">${userBadges.length}</div>
+                    <div class="stat-value">${(userBadges || []).length}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Total disponible</div>
-                    <div class="stat-value">${allBadges.length}</div>
+                    <div class="stat-value">${(allBadges || []).length}</div>
                 </div>
             </div>
 
             <h3>Vos badges</h3>
             <div class="badges-grid">
-                ${userBadges.length === 0 ? '<p>Vous n\'avez pas encore de badges</p>' :
-                userBadges.map(ub => {
+                ${(userBadges || []).length === 0 ? '<p>Vous n\'avez pas encore de badges</p>' :
+                (userBadges || []).map(ub => {
                     const badge = ub.badge || ub;
                     return `
                     <div class="badge-card earned rarity-${badge.rarity || 'common'}">
@@ -1494,7 +1512,8 @@ async function renderBadgesPage() {
 
             <h3>Tous les badges</h3>
             <div class="badges-grid">
-                ${allBadges.map(badge => `
+                ${(allBadges || []).length === 0 ? '<p>Aucun badge créé pour le moment</p>' :
+                (allBadges || []).map(badge => `
                     <div class="badge-card ${earnedIds.has(badge._id) ? 'earned' : 'locked'} rarity-${badge.rarity || 'common'}">
                         <div class="badge-icon">${badge.icon || '🏅'}</div>
                         <div class="badge-name">${badge.name}</div>
@@ -1512,7 +1531,7 @@ async function renderBadgesPage() {
             </div>
         `;
     } catch (error) {
-        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+        content.innerHTML = `<div class="error-message">Impossible de charger les badges: ${error.message}</div>`;
     }
 }
 
@@ -1585,9 +1604,12 @@ async function renderBadgeRulesPage() {
 
     try {
         const [rules, badges] = await Promise.all([
-            apiCall('/badgeRule'),
-            apiCall('/badge')
+            apiCall('/badgeRule', 'GET', null, true),
+            apiCall('/badge', 'GET', null, true)
         ]);
+
+        const rulesList = rules || [];
+        const badgesList = badges || [];
 
         content.innerHTML = `
             <div class="page-header">
@@ -1607,8 +1629,8 @@ async function renderBadgeRulesPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        ${rules.length === 0 ? '<tr><td colspan="5" class="text-center">Aucune règle</td></tr>' :
-                        rules.map(rule => `
+                        ${rulesList.length === 0 ? '<tr><td colspan="5" class="text-center">Aucune règle créée</td></tr>' :
+                        rulesList.map(rule => `
                             <tr>
                                 <td>${rule.badge?.name || 'N/A'} ${rule.badge?.icon || ''}</td>
                                 <td>${rule.conditionType}</td>
@@ -1625,14 +1647,19 @@ async function renderBadgeRulesPage() {
             </div>
         `;
 
-        window.cachedBadges = badges;
+        window.cachedBadges = badgesList;
     } catch (error) {
-        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+        content.innerHTML = `<div class="error-message">Impossible de charger les règles: ${error.message}</div>`;
     }
 }
 
 async function showCreateBadgeRuleModal() {
-    const badges = window.cachedBadges || await apiCall('/badge').catch(() => []);
+    const badges = window.cachedBadges || await apiCall('/badge', 'GET', null, true) || [];
+    
+    if (badges.length === 0) {
+        showError('Vous devez d\'abord créer des badges avant de pouvoir créer des règles');
+        return;
+    }
 
     showModal('Nouvelle règle de badge', `
         <form id="create-rule-form">
@@ -1701,11 +1728,13 @@ async function renderRewardsPage() {
 
     try {
         const [rewards, userRewards] = await Promise.all([
-            apiCall('/reward'),
-            apiCall(`/reward/user/${currentUser.id}`).catch(() => [])
+            apiCall('/reward', 'GET', null, true),
+            apiCall(`/reward/user/${currentUser.id}`, 'GET', null, true)
         ]);
 
-        const claimedIds = new Set(userRewards.map(ur => ur.reward?._id || ur.reward));
+        const rewardsList = rewards || [];
+        const userRewardsList = userRewards || [];
+        const claimedIds = new Set(userRewardsList.map(ur => ur.reward?._id || ur.reward));
 
         content.innerHTML = `
             <div class="page-header">
@@ -1716,16 +1745,17 @@ async function renderRewardsPage() {
             <div class="stats-grid">
                 <div class="stat-card success">
                     <div class="stat-label">Réclamées</div>
-                    <div class="stat-value">${userRewards.length}</div>
+                    <div class="stat-value">${userRewardsList.length}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Disponibles</div>
-                    <div class="stat-value">${rewards.length}</div>
+                    <div class="stat-value">${rewardsList.length}</div>
                 </div>
             </div>
 
             <div class="rewards-grid">
-                ${rewards.map(reward => `
+                ${rewardsList.length === 0 ? '<p>Aucune récompense disponible pour le moment</p>' :
+                rewardsList.map(reward => `
                     <div class="reward-card ${claimedIds.has(reward._id) ? 'claimed' : ''}">
                         <div class="reward-icon">${reward.icon || '🎁'}</div>
                         <div class="reward-name">${reward.name}</div>
@@ -1745,7 +1775,7 @@ async function renderRewardsPage() {
             </div>
         `;
     } catch (error) {
-        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+        content.innerHTML = `<div class="error-message">Impossible de charger les récompenses: ${error.message}</div>`;
     }
 }
 
@@ -1811,8 +1841,8 @@ async function renderScoresPage() {
     content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     try {
-        const leaderboard = await apiCall('/score/leaderboard');
-        const userScore = await apiCall(`/score/user/${currentUser.id}`).catch(() => null);
+        const leaderboard = await apiCall('/score/leaderboard', 'GET', null, true) || [];
+        const userScore = await apiCall(`/score/user/${currentUser.id}`, 'GET', null, true);
 
         content.innerHTML = `
             <div class="page-header">
@@ -1837,7 +1867,7 @@ async function renderScoresPage() {
                         </div>
                     </div>
                 </div>
-            ` : ''}
+            ` : '<div class="card"><p>Aucun score enregistré pour le moment. Complétez des défis pour gagner des points !</p></div>'}
 
             <div class="card">
                 <h3>Top joueurs</h3>
@@ -1867,7 +1897,7 @@ async function renderScoresPage() {
             </div>
         `;
     } catch (error) {
-        content.innerHTML = `<div class="error-message">${error.message}</div>`;
+        content.innerHTML = `<div class="error-message">Impossible de charger le classement: ${error.message}</div>`;
     }
 }
 
